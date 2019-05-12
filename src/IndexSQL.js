@@ -25,7 +25,7 @@
   * @param {*} dbName 
   * @param {*} options 
   */
-function IndexSQL(dbName,options){
+function IndexSQL(dbName){
     let db={};
     let requestDB = indexedDB.open("IndexSQL",1);
     requestDB.onerror = function(event) {

@@ -7,5 +7,8 @@ IndexSQL is a tool that helps with the use of IndexedDB by making it SQL like. I
         }
     );
 
+To add it into your webpage you can use:
+    <script src="https://dandimrod.github.io/IndexSQL/src/IndexSQL.min.js" type="​​application/javascript"></script>
+
 For more information, please check our [documentation](https://dandimrod.github.io/IndexSQL/docs).  
 You can also check a living [demo](https://dandimrod.github.io/IndexSQL/demo.html).
