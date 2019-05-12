@@ -1,0 +1,16 @@
+<textarea id="code"></textarea><br/><button onclick="indexSQL.execute(editor.getValue(),function(e){console.log(e)})">Submit</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.min.css">
+<script src="src/IndexSQL.js"></script>
+<script>
+    var codeElement=document.getElementById("code");
+    var editor=CodeMirror.fromTextArea(codeElement, {
+        mode: 'text/x-mariadb',
+        indentWithTabs: true,
+        smartIndent: true,
+        lineNumbers: true,
+        matchBrackets : true,
+        autofocus: true,
+    });
+    var indexSQL=new IndexSQL("demo");
+</script>

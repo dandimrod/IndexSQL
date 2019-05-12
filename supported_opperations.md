@@ -1,0 +1,39 @@
+- [x] SQL Transactions 
+- [x] DB operations 
+- [x] CREATE TABLE Statement
+- [ ] DROP TABLE Statement
+- [ ] ALTER TABLE Statement
+- [ ] SQL Constraints
+- [ ] SELECT
+- [ ] SELECT DISTINCT
+- [ ] WHERE
+- [ ] AND, OR and NOT Operators
+- [ ] ORDER BY Keyword
+- [ ] INSERT INTO
+- [ ] NULL Values
+- [ ] UPDATE Statement
+- [ ] DELETE Statement
+- [ ] TOP, LIMIT or ROWNUM Clause
+- [ ] MIN() and MAX() Functions
+- [ ] COUNT(), AVG() and SUM() Functions
+- [ ] LIKE Operator
+- [ ] SQL Wildcards
+- [ ] IN Operator
+- [ ] BETWEEN Operator
+- [ ] SQL Aliases
+- [ ] SQL Joins
+- [ ] INNER JOIN Keyword
+- [ ] LEFT JOIN Keyword
+- [ ] RIGHT JOIN Keyword
+- [ ] FULL OUTER JOIN Keyword
+- [ ] Self JOIN
+- [ ] UNION Operator
+- [ ] GROUP BY Statement
+- [ ] HAVING Clause
+- [ ] EXISTS Operator
+- [ ] ANY and ALL Operators
+- [ ] SELECT INTO Statement
+- [ ] INSERT INTO SELECT Statement
+- [ ] INSERT INTO SELECT Statement
+- [ ] CASE Statement
+- [ ] NULL Functions
