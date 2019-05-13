@@ -132,6 +132,7 @@ function IndexSQL(dbName){
                     response[index]=this.parser(query);
                     if(DBUtils.transaction){
                         if(response[index].error){
+                            response[index].error=response[index].error+". Transaction cancelled";
                             break;
                         }
                     }
@@ -139,17 +140,23 @@ function IndexSQL(dbName){
                 return response;
             },
             parser:function(query){
-                query=query.replace(/(\r\n|\n|\r)/gm," ");
+                query=query.replace(/(\r\n|\n|\r)/gm," ").trim();
                 let operation=query.split(" ")[0].toUpperCase();
                 switch (operation) {
                     case "SELECT":
                         return this.select(query);
+                    case "INSERT":
+                        return this.insert(query);
                     case "CREATE":
                         return this.create(query);
+                    case "DROP":
+                        return this.drop(query);
+                    case "TRUNCATE":
+                        return this.trucate(query);
                     case "START":
-                        return this.create(query);
+                        return this.start(query);
                     case "END":
-                        return this.create(query);
+                        return this.end(query);
                     default:
                         return {error:"Not supported operation"};
                 }
@@ -185,32 +192,71 @@ function IndexSQL(dbName){
                 }
                 
             },
+            insert:function(query){
+                let insertRegex=/^INSERT\s*INTO\s*(?<tableName>\w*)\s*(?:\((?<columns>.*)\))?\s*VALUES\s*\((?<values>.*)\)\s*$/gmi;
+                let matches=insertRegex.exec(query);
+                if(matches===null){
+                    return {error:"Not supported operation"};
+                }
+                matches = matches.groups;
+                let table = tables.find(data,matches.tableName);
+                if(!table){
+                    return {error:"This table doesn't exists"};
+                }
+                let columnOrder=[];
+                if(matches.colums){
+                    let columns=matches.columns.split(",");
+                    columns.forEach(element => {
+                        columnOrder.push(element.trim());
+                    });
+                }else{
+                    for (const key in table) {
+                        if (table.hasOwnProperty(key)) {
+                            const element = table[key];
+                            columnOrder[element.split(";")[1]]=element.split(";")[0]
+                        }
+                    }
+                }
+                let values=matches.values.split(",");
+                for (let index = 0; index < values.length; index++) {
+                    const element = values[index];
+                    values[index]=element.trim();
+                }
+                let result=tables.insert(matches.tableName,table,values,columnOrder);
+                if(result.error){
+                    return result;
+                }
+                if(!DBUtils.transaction){
+                    DBUtils.save();
+                }
+                return result;
+            },
             create:function(query){
                 function getParameters(parameters){
                     //DELETE PARENTHESIS
                     parameters=parameters.slice(1,-1);
                     let result={constraints:[],parameters:[]};
-                    let inlineConstraints=["NOT NULL","UNIQUE","DEFAULT","AUTO_INCREMENT","CHECK"];
+                    let inlineConstraints=["NOT_NULL","UNIQUE","DEFAULT","AUTO_INCREMENT","CHECK"];
                     let datatypes=["STRING","NUMBER","BOOLEAN"]
                     let parametersBreak=parameters.split(",");
                     for (let index = 0; index < parametersBreak.length; index++) {
                         const parameterString = parametersBreak[index].trim();
                         if(parameterString.toUpperCase().includes("KEY")){
                             if(parameterString.toUpperCase().includes("PRIMARY")){
-                                let primaryRegex=/^PRIMARY KEY \((.*)\)$/gmi;
-                                let key=primaryRegex.match(parameterString).groups[0];
-                                if(result.parameters.includes(key)){
+                                let primaryRegex=/^PRIMARY KEY \((?<varName>.*)\)$/gmi;
+                                let key=primaryRegex.exec(parameterString).groups["varName"];
+                                if(result.parameters.find(function(a){return a.name===key&&a.datatype==="NUMBER"})){
                                     result.constraints.push(parameterString);
                                 }else{
                                     return {error:"PRIMARY KEY does not exist"};
                                 }
                             }else{
-                                let foreingRegex=/^^FOREIGN KEY \((.*)\) REFERENCES (.*)\((.*)\)$/gmi;
-                                let groups=foreingRegex.match(parameterString).groups;
-                                if(!result.parameters.includes(groups[0])){
+                                let foreingRegex=/^^FOREIGN KEY \((?<varName>.*)\) REFERENCES (?<referTable>.*)\((?<referName>.*)\)$/gmi;
+                                let groups=foreingRegex.exec(parameterString).groups;
+                                if(!result.parameters.find(function(a){return a.name===groups["varName"]&&a.datatype==="NUMBER"})){
                                     return {error:"FOREIGN KEY does not exist"};
                                 }
-                                if(tables.findColumn(tables.find(data,groups[1]),groups[2])){
+                                if(!tables.find(tables.find(data,groups["referTable"]),groups["referName"])){
                                     return {error:"FOREIGN KEY does not exist in foreign table"};
                                 }
                                 result.constraints.push(parameterString);
@@ -230,7 +276,7 @@ function IndexSQL(dbName){
                                 const element = parameterBreak[index];
                                 if(inlineConstraints.includes(element.toUpperCase())){
                                     switch (element.toUpperCase()) {
-                                        case "NOT NULL":
+                                        case "NOT_NULL":
                                             parameter.constraints=parameter.constraints+"NOT NULL,"
                                             break;
 
@@ -277,13 +323,20 @@ function IndexSQL(dbName){
                     }
                     return result;
                 }
-                let createRegex=/^CREATE TABLE (?<tableName>\w*)\s*(?:(?<parameters>\(.*\))|(?:AS (?<selectCopy>.*)))$/gmi;
-                let matches = createRegex.exec(query).groups;
+                let createRegex=/^CREATE\s*TABLE\s*(?<tableName>\w*)\s*(?:(?<parameters>\(.*\))|(?:AS (?<selectCopy>.*)))$/gmi;
+                let matches = createRegex.exec(query);
+                if(matches===null){
+                    return {error:"Not supported operation"};
+                }
+                matches = matches.groups;
                 let table;
+                if(tables.find(data,matches.tableName)){
+                    return {message:"This table already exists"}
+                }
                 if(matches.parameters){
                     let parameters=getParameters(matches.parameters);
                     if(parameters.error){
-                        return parameters.error;
+                        return parameters;
                     }
                     table=new Table(parameters.parameters);
                     if(table.error){
@@ -298,9 +351,45 @@ function IndexSQL(dbName){
                 }
                 return{message:"Table created"}
             },
+            drop:function(query){
+                let dropRegex=/^DROP\s*TABLE\s*(?<tableName>\w*)\s*$/gmi;
+                let matches=dropRegex.exec(query);
+                if(matches===null){
+                    return {error:"Not supported operation"};
+                }
+                matches = matches.groups;
+                if(!tables.find(data,matches.tableName)){
+                    return {message:"This table doesn't exists"}
+                }
+                delete data[tables.finder(data,matches.tableName)];
+                if(!DBUtils.transaction){
+                    DBUtils.save();
+                }
+                return{message:"Table dropped"}
+            },
+            trucate:function(query){
+                let truncateRegex=/^TRUNCATE\s*TABLE\s*(?<tableName>\w*)\s*$/gmi;
+                let matches=truncateRegex.exec(query);
+                if(matches===null){
+                    return {error:"Not supported operation"};
+                }
+                matches = matches.groups;
+                if(!tables.find(data,matches.tableName)){
+                    return {message:"This table doesn't exists"}
+                }
+                let table=tables.find(data,matches.tableName);
+                for (let index = 0; index < table.length; index++) {
+                    const element = table[index];
+                    element=[];
+                }
+                if(!DBUtils.transaction){
+                    DBUtils.save();
+                }
+                return{message:"Table truncated"}
+            },
             start:function(query){
-                let startRegex=/^START TRANSACTION\s*$/gmi;
-                let matches = query.macthes(startRegex);
+                let startRegex=/^START\s*TRANSACTION\s*$/gmi;
+                let matches = startRegex.compile(query);
                 if(matches){
                     DBUtils.transaction=true;
                     return {message:"Transaction starts"};
@@ -309,8 +398,8 @@ function IndexSQL(dbName){
                 }
             },
             end:function(query){
-                let endRegex=/^END TRANSACTION\s*$/gmi;
-                let matches = query.macthes(endRegex);
+                let endRegex=/^END\s*TRANSACTION\s*$/gmi;
+                let matches = endRegex.compile(query);
                 if(matches){
                     DBUtils.transaction=false;
                     DBUtils.save();
@@ -326,11 +415,11 @@ function IndexSQL(dbName){
             let table={};
             for (let index = 0; index < variables.length; index++) {
                 const element = variables[index];
-                if(!tables.findColumn(table,element.name)){
+                if(!tables.find(table,element.name)){
                     if(element.constraints){
-                        table[element.name+";"+element.datatype+";"+element.constraints]=[];
+                        table[element.name+";"+index+";"+element.datatype+";"+element.constraints]={};
                     }else{
-                        table[element.name+";"+element.datatype]=[];
+                        table[element.name+";"+index+";"+element.datatype]={};
                     }
                 }else{
                     return {error:"Variable already exists"};
@@ -339,10 +428,27 @@ function IndexSQL(dbName){
             return table;
         }
         var tables={
-            find:function(save,table){
-                return save.filter(function(a){
-                    return a.split(";")[0]===table;
-                })[0];
+            find:function(container,search){
+                for (const key in container) {
+                    if (container.hasOwnProperty(key)) {
+                        const element = container[key];
+                        if(key.split(";")[0]===search){
+                            return element;
+                        }
+                    }
+                }
+                return undefined;
+            },
+            finder:function(container,search){
+                for (const key in container) {
+                    if (container.hasOwnProperty(key)) {
+                        const element = container[key];
+                        if(key.split(";")[0]===search){
+                            return key;
+                        }
+                    }
+                }
+                return undefined;
             },
             findColumn:function(table,column){
                 for (const key in table) {
@@ -355,8 +461,25 @@ function IndexSQL(dbName){
                 }
                 return undefined;
             },
-            insert:function(table,values){
+            insert:function(tableName,table,values,order){
+                let tableData=tables.finder(data,tableName);
+                let insertData=[];
+                // This generates the data to insert and applies the constraits
+                for (const key in table) {
+                    if (table.hasOwnProperty(key)) {
+                        const column = table[key];
+                        let columnName=key.split(";")[0];
+                        let index=order.indexOf(columnName);
+                        let datatype=key.split(";")[2];
+                        if(index){
+                            //the insert contains the column
 
+                        }else{
+                            //the insert doesn't contain the column
+
+                        }
+                    }
+                }
             }
         };
         function createDB(name){

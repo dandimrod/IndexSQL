@@ -1,4 +1,5 @@
-<textarea id="code"></textarea><br/><button onclick="indexSQL.execute(editor.getValue(),function(e){console.log(e)})">Submit</button>
+<textarea id="code"></textarea><br/><button onclick="indexSQL.execute(editor.getValue(),function(result){drawResults(result)})">Submit</button>
+<div id="result"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.min.css">
 <script src="src/IndexSQL.js"></script>
@@ -13,4 +14,19 @@
         autofocus: true,
     });
     var indexSQL=new IndexSQL("demo");
+    function drawResults(results){
+        let resultString="";
+        for (let index = 0; index < results.length; index++) {
+            const result = results[index];
+            if(result.error){
+                resultString=resultString+"<p style='color:red;'>Error in command "+(index+1)+": "+result.error+"</p>";
+                continue;
+            }
+            if(result.message){
+                resultString=resultString+"<p style='color:blue;'>Message from command "+(index+1)+": "+result.message+"</p>";
+                continue;
+            }
+        }
+        document.getElementById("result").innerHTML=resultString;
+    }
 </script>
