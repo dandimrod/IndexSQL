@@ -416,6 +416,7 @@ function IndexSQL(dbName){
                     if(datatype.includes("BOOL")){
                         return "BOOLEAN";
                     }
+                    return datatype;
                 }
                 let createRegex=/^CREATE\s*TABLE\s*(?<tableName>\w*)\s*(?:(?<parameters>\(.*\))|(?:AS (?<selectCopy>.*)))$/gmi;
                 let matches = createRegex.exec(query);
