@@ -167,35 +167,89 @@ function IndexSQL(dbName){
                 }
             },
             select:function(query){
-                let from=function(fromStatement){
-                    let keywords=["WHERE","ORDER"];
+                function getFrom(fromStatement){
+                    let keywords=["where","order"];
                     let macthes={};
                     let dividedFrom=fromStatement.split(" ");
-                    let lastMatch="FROM";
+                    let lastMatch="from";
                     for (let index = 0; index < dividedFrom.length; index++) {
                         const element = dividedFrom[index];
-                        if(keywords.includes(element.toUpperCase())){
+                        if(keywords.includes(element.toLowerCase())){
                             lastMatch=element.toUpperCase();
                         }else{
                             macthes[lastMatch]=macthes[lastMatch]+" "+element;
                         }
                     }
-                    keywords.order=keywords.order.substring(3);
-                    return keywords;
+                    matches.from=matches.from.trim();
+                    matches.where=macthes.where?matches.where.trim():undefined;
+                    matches.order=matches.order?matches.order.trim():undefined;
+                    macthes.order=matches.order?matches.order.substring(3):undefined;
+                    return matches;
                 }
-                let selectRegex=/^SELECT\s*(?<distint>DISTINCT)?\s*(?<columns>.*)\s*FROM(?<from>.*)$/gmi;
-                let macthes=selectRegex.exec(query).groups;
-                matches={...from(macthes.from), ...matches};
-                let table = data.find(function(a){
-                    return macthes.from===a.split(";")[0];
-                });
-                if(save.where){
-                    
+                function getColumns(matches,table){
+                    let columns;
+                    if(matches.columns.trim()==="*"){
+                        columns=[];
+                        Object.keys(table).forEach(function(element){
+                            columns.push(element.split(";")[0]);
+                        })
+                    }else{
+                        columns=matches.columns.split(",");
+                        for (let index = 0; index < columns.length; index++) {
+                            columns[index] = columns[index].trim();
+                        }
+                        //Detects if the table contains the columns
+                        for (let index = 0; index < columns.length; index++) {
+                            const element = columns[index];
+                            if(element.split(".")[1]){
+                                let foreingTable=tables.find(data,element.split(".")[0]);
+                                if(!foreingTable){
+                                   return {error:"The table "+element.split(".")[0]+" doesn't exist"} 
+                                }
+                                if(!tables.find(foreingTable,element.split(".")[1])){
+                                    return {error:"The column "+element.split(".")[1]+" does not belong to the table "+element.split(".")[0]}; 
+                                }
+                            }else{
+                                if(!tables.find(table,element)){
+                                    return {error:"The column "+element+" does not belong to the table "+matches.from};
+                                }
+                            }
+                        }
+                    }
+                    return columns;
                 }
-                if(table===undefined){
-                    return {error:"Table not found"};
+                let selectRegex=/^SELECT\s*(?<distinct>DISTINCT)?\s*(?<columns>.*)\s*FROM(?<from>.*)$/gmi;
+                let matches=selectRegex.exec(query)
+                if(!matches){
+                    return {error:"Not supported operation"};
                 }
-                
+                matches=matches.groups;
+                matches={...getFrom(matches.from.trim()), ...matches};
+                let table = tables.find(data,matches.from);
+                if(!table){
+                    return {error:"This table doesn't exists"};
+                }
+                let columns=getColumns(matches,table);
+                if(columns.error){
+                    return columns;
+                }
+                let where;
+                if(matches.where){
+                    where=tables.where(save.where);
+                    if(where.error){
+                        return where;
+                    }
+                }
+                let result={};
+                for (const key in table) {
+                    if (table.hasOwnProperty(key)) {
+                        const element = table[key];
+                        if(columns.includes(key.split(";")[0])){
+                            result[key]=element;
+                        }
+                    }
+                }
+                return {result:result};
             },
             insert:function(query){
                 let insertRegex=/^INSERT\s*INTO\s*(?<tableName>\w*)\s*(?:\((?<columns>.*)\))?\s*VALUES\s*\((?<values>.*)\)\s*$/gmi;
@@ -224,8 +278,7 @@ function IndexSQL(dbName){
                 }
                 let values=matches.values.split(",");
                 for (let index = 0; index < values.length; index++) {
-                    const element = values[index];
-                    values[index]=element.trim();
+                    values[index] = values[index].trim();
                 }
                 let result=tables.insert(matches.tableName,table,values,columnOrder);
                 if(result.error){
@@ -271,8 +324,9 @@ function IndexSQL(dbName){
                             let parameter={
                                 name:parameterBreak[0]
                             };
-                            if(datatypes.includes(parameterBreak[1].toUpperCase())){
-                                parameter.datatype=parameterBreak[1].toUpperCase();
+                            let datatype=transformDatatypes(parameterBreak[1].toUpperCase());
+                            if(datatypes.includes(datatype)){
+                                parameter.datatype=datatype;
                             }else{
                                 return {error:"Parameter "+parameterBreak[0]+" has a non valid datatype"}
                             }
@@ -327,6 +381,41 @@ function IndexSQL(dbName){
                         }
                     }
                     return result;
+                }
+                function transformDatatypes(datatype){
+                    //STRING
+                    if(datatype.includes("CHAR")){
+                        return "STRING";
+                    }
+                    if(datatype.includes("BINARY")){
+                        return "STRING";
+                    }
+                    if(datatype.includes("TEXT")){
+                        return "STRING";
+                    }
+                    if(datatype.includes("BLOB")){
+                        return "STRING";
+                    }
+                    //NUMBER
+                    if(datatype.includes("BIT")){
+                        return "NUMBER";
+                    }
+                    if(datatype.includes("INT")){
+                        return "NUMBER";
+                    }
+                    if(datatype.includes("FLOAT")){
+                        return "NUMBER";
+                    }
+                    if(datatype.includes("DOUBLE")){
+                        return "NUMBER";
+                    }
+                    if(datatype.includes("DEC")){
+                        return "NUMBER";
+                    }
+                    //BOOLEAN
+                    if(datatype.includes("BOOL")){
+                        return "BOOLEAN";
+                    }
                 }
                 let createRegex=/^CREATE\s*TABLE\s*(?<tableName>\w*)\s*(?:(?<parameters>\(.*\))|(?:AS (?<selectCopy>.*)))$/gmi;
                 let matches = createRegex.exec(query);
@@ -614,7 +703,7 @@ function IndexSQL(dbName){
                 let keys=Object.keys(table);
                 for (const key in table) {
                     if (table.hasOwnProperty(key)) {
-                        result.header.push({name:key.split(";")[0],constraints:key.split(";")[2]});
+                        result.header.push({name:key.split(";")[0],datatype:key.split(";")[2],constraints:key.split(";")[3]});
                     }
                 }
                 for (const key in table[keys[0]]) {
@@ -628,6 +717,9 @@ function IndexSQL(dbName){
                     }
                 }
                 return result;
+            },
+            where:function(where){
+
             }
         };
         function createDB(name){

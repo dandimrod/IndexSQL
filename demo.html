@@ -56,10 +56,21 @@
         position:relative;
         min-height:4em;
     }
-    .CodeMirror {
-        border: 1px solid #eee;
-        height: 100%;
+
+    table {
+        border-collapse: collapse;
+        width: 100%;
     }
+
+    td, th {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 8px;
+    }
+    .console td, th {
+        color:white;
+    }
+
 </style>
 <div class="demo-container">
     <div class="console-container">
@@ -137,21 +148,21 @@
             return function(result){
                 let table=result[0].result;
                 let tablesString="<h2>Showing table "+tableName+"</h2>"+tableDrawer(table);
-                document.getElementById("table-inspector").innerHTML=tableString;
+                document.getElementById("table-inspector").innerHTML=tablesString;
             }
         }(table));
     }
     function tableDrawer(table){
-        let tableString="<table style='width:100%'><tr>";
-        for (let index = 0; index < table.headers.length; index++) {
-            const element = table.headers[index];
+        let tableString="<table><tr>";
+        for (let index = 0; index < table.header.length; index++) {
+            const element = table.header[index];
             tableString=tableString+"<th title='"+element.constraints+"'>"+element.name+"</th>";
         }
         tableString=tableString+"</tr>";
         for (let index = 0; index < table.values.length; index++) {
             const values = table.values[index];
             tableString=tableString+"<tr>";
-            for (let index2 = 0; index2 < element.length; index2++) {
+            for (let index2 = 0; index2 < values.length; index2++) {
                 const value = values[index2];
                 tableString=tableString+"<td>"+value+"</td>";
             }
