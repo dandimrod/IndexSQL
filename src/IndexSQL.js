@@ -130,6 +130,9 @@ function IndexSQL(dbName){
                 for (let index = 0; index < querys.length-1; index++) {
                     const query = querys[index];
                     response[index]=this.parser(query);
+                    if(response[index].result){
+                        response[index].result=tables.transform(response[index].result);
+                    }
                     if(DBUtils.transaction){
                         if(response[index].error){
                             response[index].error=response[index].error+". Transaction cancelled";
@@ -157,6 +160,8 @@ function IndexSQL(dbName){
                         return this.start(query);
                     case "END":
                         return this.end(query);
+                    case "TABLES":
+                        return this.tables(query);
                     default:
                         return {error:"Not supported operation"};
                 }
@@ -204,7 +209,7 @@ function IndexSQL(dbName){
                     return {error:"This table doesn't exists"};
                 }
                 let columnOrder=[];
-                if(matches.colums){
+                if(matches.columns){
                     let columns=matches.columns.split(",");
                     columns.forEach(element => {
                         columnOrder.push(element.trim());
@@ -235,7 +240,7 @@ function IndexSQL(dbName){
                 function getParameters(parameters){
                     //DELETE PARENTHESIS
                     parameters=parameters.slice(1,-1);
-                    let result={constraints:[],parameters:[]};
+                    let result={keys:{primary:"",foreign:[]},parameters:[]};
                     let inlineConstraints=["NOT_NULL","UNIQUE","DEFAULT","AUTO_INCREMENT","CHECK"];
                     let datatypes=["STRING","NUMBER","BOOLEAN"]
                     let parametersBreak=parameters.split(",");
@@ -243,15 +248,15 @@ function IndexSQL(dbName){
                         const parameterString = parametersBreak[index].trim();
                         if(parameterString.toUpperCase().includes("KEY")){
                             if(parameterString.toUpperCase().includes("PRIMARY")){
-                                let primaryRegex=/^PRIMARY KEY \((?<varName>.*)\)$/gmi;
+                                let primaryRegex=/^PRIMARY\s*KEY\s*\((?<varName>.*)\)$/gmi;
                                 let key=primaryRegex.exec(parameterString).groups["varName"];
                                 if(result.parameters.find(function(a){return a.name===key&&a.datatype==="NUMBER"})){
-                                    result.constraints.push(parameterString);
+                                    result.keys.primary=key;
                                 }else{
                                     return {error:"PRIMARY KEY does not exist"};
                                 }
                             }else{
-                                let foreingRegex=/^^FOREIGN KEY \((?<varName>.*)\) REFERENCES (?<referTable>.*)\((?<referName>.*)\)$/gmi;
+                                let foreingRegex=/^^FOREIGN\s*KEY\s*\((?<varName>.*)\)\s*REFERENCES\s*(?<referTable>.*)\((?<referName>.*)\)$/gmi;
                                 let groups=foreingRegex.exec(parameterString).groups;
                                 if(!result.parameters.find(function(a){return a.name===groups["varName"]&&a.datatype==="NUMBER"})){
                                     return {error:"FOREIGN KEY does not exist"};
@@ -259,7 +264,7 @@ function IndexSQL(dbName){
                                 if(!tables.find(tables.find(data,groups["referTable"]),groups["referName"])){
                                     return {error:"FOREIGN KEY does not exist in foreign table"};
                                 }
-                                result.constraints.push(parameterString);
+                                result.keys.foreign.push(groups.varName+":"+groups.referTable+"("+groups.referName+")");
                             }
                         }else{
                             let parameterBreak=parameterString.split(" ");
@@ -331,7 +336,7 @@ function IndexSQL(dbName){
                 matches = matches.groups;
                 let table;
                 if(tables.find(data,matches.tableName)){
-                    return {message:"This table already exists"}
+                    return {warn:"This table already exists"}
                 }
                 if(matches.parameters){
                     let parameters=getParameters(matches.parameters);
@@ -342,7 +347,7 @@ function IndexSQL(dbName){
                     if(table.error){
                         return table;
                     }
-                    data[matches.tableName+";"+parameters.constraints.join(",")]=table;
+                    data[matches.tableName+";"+parameters.keys.primary+";"+parameters.keys.foreign.join(",")]=table;
                 }else{
 
                 }
@@ -359,7 +364,7 @@ function IndexSQL(dbName){
                 }
                 matches = matches.groups;
                 if(!tables.find(data,matches.tableName)){
-                    return {message:"This table doesn't exists"}
+                    return {warn:"This table doesn't exists"}
                 }
                 delete data[tables.finder(data,matches.tableName)];
                 if(!DBUtils.transaction){
@@ -375,7 +380,7 @@ function IndexSQL(dbName){
                 }
                 matches = matches.groups;
                 if(!tables.find(data,matches.tableName)){
-                    return {message:"This table doesn't exists"}
+                    return {warn:"This table doesn't exists"}
                 }
                 let table=tables.find(data,matches.tableName);
                 for (let index = 0; index < table.length; index++) {
@@ -404,6 +409,21 @@ function IndexSQL(dbName){
                     DBUtils.transaction=false;
                     DBUtils.save();
                     return {message:"Transaction ends"};
+                }else{
+                    return {error:"Not supported operation"};
+                }
+            },
+            tables:function(query){
+                let tablesRegex=/^TABLES\s*$/gmi;
+                let matches = tablesRegex.compile(query);
+                if(matches){
+                    let tables=[];
+                    for (const key in data) {
+                        if (data.hasOwnProperty(key)) {
+                            tables.push(key.split(";")[0]);
+                        }
+                    }
+                    return {result:{"tables;0;":tables}};
                 }else{
                     return {error:"Not supported operation"};
                 }
@@ -463,7 +483,7 @@ function IndexSQL(dbName){
             },
             insert:function(tableName,table,values,order){
                 let tableData=tables.finder(data,tableName);
-                let insertData=[];
+                let insertData={};
                 // This generates the data to insert and applies the constraits
                 for (const key in table) {
                     if (table.hasOwnProperty(key)) {
@@ -471,15 +491,143 @@ function IndexSQL(dbName){
                         let columnName=key.split(";")[0];
                         let index=order.indexOf(columnName);
                         let datatype=key.split(";")[2];
-                        if(index){
+                        let constraints=key.split(";")[3]?key.split(";")[3]:"";
+                        let value=null;
+                        if(index!==-1){
                             //the insert contains the column
-
+                            value=this.checkDatatype(datatype,values[index]);
                         }else{
                             //the insert doesn't contain the column
+                            if(constraints.includes("DEFAULT")){
+                                let defaultRegex=/DEFAULT\s*(?<defaultValue>.*),/gmi;
+                                vaule=this.checkDatatype(datatype,defaultRegex.exec(constraints).groups.defaultValue);
+                            }
+                            if(constraints.includes("AUTO_INCREMENT")){
+                                value=Object.keys(column).length;
+                            }
+                        }
+                        if(value.error){
+                            return value;
+                        }
+                        if(constraints.includes("NOT_NULL")){
+                            if(value===null){
+                                return {error:"Value of column "+columnName+" cannot be null"};
+                            }
+                        }
+                        if(constraints.includes("UNIQUE")){
+                            for (const key in column) {
+                                if (column.hasOwnProperty(key)) {
+                                    const element = object[key];
+                                    if(value===element){
+                                        return {error:"Value of column "+columnName+" has to be unique"}; 
+                                    }
+                                }
+                            }
+                        }
+                        if(constraints.includes("CHECK")){
 
+                        }
+                        insertData[key]=value;
+                    }
+                }
+                // checks if the foreing key exists
+                if(tableData.split(";")[2]){
+                    let foreignKeys=tableData.split(";")[2].split(",");
+                    for (let index = 0; index < foreignKeys.length; index++) {
+                        const foreignKey = foreignKeys[index];
+                        let value=insertData[tables.finder(table,foreignKey.split(":")[0])];
+                        let foreingTable=tables.find(data,foreignKey.split(":")[1].split("(")[0]);
+                        let foreignValues=tables.find(foreingTable,foreignKey.split(":")[1].split("(")[1].slice(0,-1));
+                        let found=false;
+                        for (const key in foreignValues) {
+                            if (foreignValues.hasOwnProperty(key)) {
+                                if(value === foreignValues[key]){
+                                    found=true;
+                                    break;
+                                }
+                            }
+                        }
+                        if(!found){
+                            return {error:"The foreign key "+foreignKey.split(":")[0]+" is not present in the foreign table"};
                         }
                     }
                 }
+                let primaryKey;
+                if(tableData.split(";")[1]){
+                    primaryKey=insertData[tables.finder(table,tableData.split(";")[1])];
+                    if(primaryKey===null){
+                        return {error:"The primary key cannot be null"};
+                    }                    
+                }else{
+                    primaryKey=Object.keys(table[Object.keys(table)[0]]).length;
+                }
+                for (const key in table) {
+                    if (table.hasOwnProperty(key)) {
+                        const element = table[key];
+                        element[primaryKey]=insertData[key];
+                    }
+                }
+                return {message:"Values inserted succesfully"}
+            },
+            checkDatatype:function(datatype,value){
+                switch (datatype) {
+                    case "STRING":
+                        let regexString=/^(?:"(?<string1>.*)"|'(?<string2>.*)')$/gmi;
+                        let match=regexString.exec(value);
+                        if(!match){
+                            return {error:"Value "+value+" is supposed to be a string"}; 
+                        }
+                        match=match.groups;
+                        if(match.string1){
+                            return match.string1;
+                        }else{
+                            if(match.string2){
+                                return match.string2;
+                            }else{
+                                return {error:"Value "+value+" is supposed to be a string"}; 
+                            }
+                        }
+
+                    case "NUMBER":
+                        let number = Number(value);
+                        if(isNaN(number)){
+                            return {error:"Value "+value+" is supposed to be a number"}; 
+                        }else{
+                            return number;
+                        }
+
+                    case "BOOLEAN":
+                        if(value.toUpperCase().includes("TRUE")){
+                            return true;
+                        }
+                        if(value.toUpperCase().includes("FALSE")){
+                            return false;
+                        }
+                        return {error:"Value "+value+" is supposed to be a boolean"};
+
+                    default:
+                        return {error:"Not supported datatype"};
+                }
+            },
+            transform:function(table){
+                let result={header:[],values:[]};
+                let keys=Object.keys(table);
+                for (const key in table) {
+                    if (table.hasOwnProperty(key)) {
+                        result.header.push({name:key.split(";")[0],constraints:key.split(";")[2]});
+                    }
+                }
+                for (const key in table[keys[0]]) {
+                    if (table[keys[0]].hasOwnProperty(key)) {
+                        let values=[];
+                        for (let index = 0; index < keys.length; index++) {
+                            const column = keys[index];
+                            values.push(table[column][key]);
+                        }
+                        result.values.push(values);
+                    }
+                }
+                return result;
             }
         };
         function createDB(name){
@@ -489,9 +637,18 @@ function IndexSQL(dbName){
         function messageHandler(e){
             if(e.data.drop){
                 DBUtils.drop();
-            }else{
-                SQLParser.parse(e.data.querys,e.data.id);
+                return;
             }
+            if(e.data.backup){
+                postMessage({backup:JSON.stringify(data)});
+                return;
+            }
+            if(e.data.restore){
+                data=JSON.parse(e.data.restore);
+                DBUtils.save();
+                return;
+            }
+            SQLParser.parse(e.data.querys,e.data.id);
         }
         onmessage=messageHandler;
     };
@@ -502,8 +659,13 @@ function IndexSQL(dbName){
             db.worker=new Worker(URL.createObjectURL(new Blob(["("+db.server.toString().slice(0,-1)+"createDB('"+dbName+"');})()"], {type: 'text/javascript'})));
             db.worker.onmessage=function(e){
                 if(e.data.end){
-                    db.worker.stop();
+                    db.worker.terminate();
                     db.end=true;
+                    return;
+                }
+                if(e.data.backup){
+                    db.backupCallback(JSON.parse(e.data.backup));
+                    return;
                 }
                 db.callbacks[e.data.id](e.data.response);
                 db.callbacks[e.data.id]=undefined;
@@ -524,6 +686,21 @@ function IndexSQL(dbName){
                 }
                 db.worker.postMessage({drop:true});
             }
+            db.backup=function(callback){
+                if(db.end){
+                    console.warn("This database has been dropped already");
+                    return;
+                }
+                db.backupCallback=callback;
+                db.worker.postMessage({backup:true});
+            }
+            db.restore=function(backup){
+                if(db.end){
+                    console.warn("This database has been dropped already");
+                    return;
+                }
+                db.worker.postMessage({restore:JSON.stringify(backup)});
+            }
         }else{
             console.warn("Browser does not support Web Workers");
             return this;
@@ -534,5 +711,7 @@ function IndexSQL(dbName){
     }
     this.execute=db.query;
     this.drop=db.drop;
+    this.backup=db.backup;
+    this.restore=db.restore;
     return this;
 }

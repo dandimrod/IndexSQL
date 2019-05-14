@@ -1,5 +1,87 @@
-<textarea id="code"></textarea><br/><button onclick="indexSQL.execute(editor.getValue(),function(result){drawResults(result)})">Submit</button>
-<div id="result"></div>
+<style>
+    body{
+        margin:0;
+    }
+    .demo-container {
+        height: 100%;
+        width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas: "console-container" "inspector";
+        position: fixed;
+                top:0px;
+                left:0px;
+    }
+
+    .console-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: "execute console";
+    grid-area: console-container;
+    }
+
+    .execute { 
+        grid-area: execute; 
+        position:relative;
+        min-height:4em;
+    }
+
+    .console { 
+        grid-area: console;
+        background-color: black;
+        color: white; 
+        position:relative;
+        min-height:4em;
+    }
+
+    .inspector {
+        display: grid;
+        grid-template-columns: 1fr 5fr;
+        grid-template-rows: 1fr;
+        grid-template-areas: "tables table-inspector";
+        grid-area: inspector;
+        background-color: aliceblue;
+    }
+
+    .tables { 
+        grid-area: tables; 
+        position:relative;
+        min-height:4em;
+    }
+
+    .table-inspector {
+        grid-area: table-inspector;
+        position:relative;
+        min-height:4em;
+    }
+    .CodeMirror {
+        border: 1px solid #eee;
+        height: 100%;
+    }
+</style>
+<div class="demo-container">
+    <div class="console-container">
+        <div class="execute">
+            <div style="position:absolute; top:0;left:0;right:0;max-height:100%;overflow:auto ;">
+                <textarea id="code"></textarea><br/><button onclick="submitCode()">Submit</button>
+            </div>
+        </div>
+        <div class="console">
+            <div style="position:absolute; top:0;left:0;right:0;max-height:100%;overflow:auto ;" id="result">
+            </div>
+        </div>
+    </div>
+    <div class="inspector">
+        <div class="tables" >
+            <div style="position:absolute; top:0;left:0;right:0;max-height:100%;overflow:auto ;" id="tables"></div>
+        </div>
+        <div class="table-inspector" >
+            <div id="table-inspector" style="position:absolute; top:0;left:0;right:0;max-height:100%;overflow:auto ;"></div>
+        </div>
+    </div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.min.css">
 <script src="src/IndexSQL.js"></script>
@@ -23,10 +105,60 @@
                 continue;
             }
             if(result.message){
-                resultString=resultString+"<p style='color:blue;'>Message from command "+(index+1)+": "+result.message+"</p>";
+                resultString=resultString+"<p>Message from command "+(index+1)+": "+result.message+"</p>";
+                continue;
+            }
+            if(result.warn){
+                resultString=resultString+"<p style='color:orange;'>Warn in command "+(index+1)+": "+result.warn+"</p>";
+                continue;
+            }
+            if(result.result){
+                resultString=resultString+"<p>Result from command "+(index+1)+": </p>"+tableDrawer(result.result);
                 continue;
             }
         }
         document.getElementById("result").innerHTML=resultString;
     }
+    function submitCode(){
+        indexSQL.execute(editor.getValue(),function(result){drawResults(result)});
+        indexSQL.execute("Tables;",function(result){drawTables(result)});
+    }
+    function drawTables(results){
+        let tables=results[0].result;
+        let tablesString="<h2>Table inspector</h2>";
+        for (let index = 0; index < tables.values.length; index++) {
+            const element = tables.values[index][0];
+            tablesString=tablesString+"<button onclick='drawTable(\""+element+"\");'>"+element+"</button><br/>"
+        }
+        document.getElementById("tables").innerHTML=tablesString;
+    }
+    function drawTable(table){
+        indexSQL.execute("SELECT * FROM "+table+";",function(tableName){
+            return function(result){
+                let table=result[0].result;
+                let tablesString="<h2>Showing table "+tableName+"</h2>"+tableDrawer(table);
+                document.getElementById("table-inspector").innerHTML=tableString;
+            }
+        }(table));
+    }
+    function tableDrawer(table){
+        let tableString="<table style='width:100%'><tr>";
+        for (let index = 0; index < table.headers.length; index++) {
+            const element = table.headers[index];
+            tableString=tableString+"<th title='"+element.constraints+"'>"+element.name+"</th>";
+        }
+        tableString=tableString+"</tr>";
+        for (let index = 0; index < table.values.length; index++) {
+            const values = table.values[index];
+            tableString=tableString+"<tr>";
+            for (let index2 = 0; index2 < element.length; index2++) {
+                const value = values[index2];
+                tableString=tableString+"<td>"+value+"</td>";
+            }
+            tableString=tableString+"</tr>";
+        }           
+        tableString=tableString+"</table>";
+        return tableString;
+    }
+    indexSQL.execute("Tables;",function(result){drawTables(result)});
 </script>

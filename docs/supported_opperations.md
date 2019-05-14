@@ -1,7 +1,7 @@
 - [x] SQL Transactions 
 - [x] DB operations 
 - [x] CREATE TABLE Statement
-- [ ] DROP TABLE Statement
+- [x] DROP TABLE Statement
 - [ ] ALTER TABLE Statement
 - [ ] SQL Constraints
 - [ ] SELECT
@@ -9,7 +9,7 @@
 - [ ] WHERE
 - [ ] AND, OR and NOT Operators
 - [ ] ORDER BY Keyword
-- [ ] INSERT INTO
+- [x] INSERT INTO
 - [ ] NULL Values
 - [ ] UPDATE Statement
 - [ ] DELETE Statement
