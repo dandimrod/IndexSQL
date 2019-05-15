@@ -3,16 +3,16 @@
 - [x] CREATE TABLE Statement
 - [x] DROP TABLE Statement
 - [ ] ALTER TABLE Statement
-- [ ] SQL Constraints
+- [x] SQL Constraints
 - [x] SELECT
 - [ ] SELECT DISTINCT
 - [x] WHERE
 - [x] AND, OR and NOT Operators
-- [ ] ORDER BY Keyword
+- [x] ORDER BY Keyword
 - [x] INSERT INTO
 - [x] NULL Values
 - [x] UPDATE Statement
-- [ ] DELETE Statement
+- [x] DELETE Statement
 - [ ] TOP, LIMIT or ROWNUM Clause
 - [ ] MIN() and MAX() Functions
 - [ ] COUNT(), AVG() and SUM() Functions

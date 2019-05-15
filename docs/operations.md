@@ -7,6 +7,7 @@ SQL operations:
 - INSERT INTO
 - TABLES
 - UPDATE
+- DELETE
 
 Database operations:
 -execute(operation, callback);

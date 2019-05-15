@@ -131,7 +131,12 @@ function IndexSQL(dbName){
                     const query = querys[index];
                     response[index]=this.parser(query);
                     if(response[index].result){
-                        response[index].result=tables.transform(response[index].result);
+                        if(response[index].order){
+                            response[index].result=tables.transform(response[index].result,response[index].order);
+                            delete response[index].order;
+                        }else{
+                            response[index].result=tables.transform(response[index].result);
+                        }
                     }
                     if(DBUtils.transaction){
                         if(response[index].error){
@@ -222,6 +227,24 @@ function IndexSQL(dbName){
                     }
                     return columns;
                 }
+                function getOrder(matches,table){
+                    let result=[];
+                    let orders=matches.order.split(",");
+                    for (let index = 0; index < orders.length; index++) {
+                        const element = orders[index].trim();
+                        let desc=false;
+                        if(!tables.find(table,element.split(" ")[0])){
+                            return {error:"The column "+element.split(" ")[0]+" does not belong to the table"};
+                        }
+                        if(element.split(" ")[1]){
+                            if(element.split(" ")[1].toUpperCase()==="DESC"){
+                                desc=true;
+                            }
+                        }
+                        result.push({name:element.split(" ")[0],desc:desc});
+                    }
+                    return result;
+                }
                 let selectRegex=/^SELECT\s*(?<distinct>DISTINCT)?\s*(?<columns>.*)\s*FROM(?<from>.*)$/gmi;
                 let matches=selectRegex.exec(query)
                 if(!matches){
@@ -275,7 +298,15 @@ function IndexSQL(dbName){
                         }
                     }
                 }
-                return {result:result};
+                if(matches.order){
+                    let order=getOrder(matches,table);
+                    if(order.error){
+                        return order;
+                    }
+                    return {result:result,order:order};
+                }else{
+                    return {result:result};
+                }
             },
             insert:function(query){
                 let insertRegex=/^INSERT\s*INTO\s*(?<tableName>\w*)\s*(?:\((?<columns>.*)\))?\s*VALUES\s*\((?<values>.*)\)\s*$/gmi;
@@ -438,11 +469,78 @@ function IndexSQL(dbName){
                 if(error){
                     return error;
                 }else{
-                    return {message:"Updated "+indexExecuted+" rows"}
+                    return {message:"Updated "+indexExecuted+" rows"};
                 }
             },
             delete:function(query){
-
+                function getFrom(fromStatement){
+                    let keywords=["where"];
+                    let fromMatches={from:"",where:"",order:""};
+                    let dividedFrom=fromStatement.split(" ");
+                    let lastMatch="from";
+                    for (let index = 0; index < dividedFrom.length; index++) {
+                        const element = dividedFrom[index];
+                        if(keywords.includes(element.toLowerCase())){
+                            lastMatch=element.toLowerCase();
+                        }else{
+                            fromMatches[lastMatch]=fromMatches[lastMatch]+" "+element;
+                        }
+                    }
+                    fromMatches.from=fromMatches.from.trim();
+                    fromMatches.where=fromMatches.where!==""?fromMatches.where.trim():undefined;
+                    return fromMatches;
+                }
+                let deleteRegex=/^DELETE\s*FROM\s*(?<from>.*)$/gmi;
+                let matches=deleteRegex.exec(query)
+                if(!matches){
+                    return {error:"Not supported operation"};
+                }
+                matches=matches.groups;
+                let matchesFrom=getFrom(matches.from.trim());
+                matches.from=matchesFrom.from;
+                matches.where=matchesFrom.where;
+                let table = tables.find(data,matches.from);
+                if(!table){
+                    return {error:"This table doesn't exists"};
+                }
+                let where;
+                if(matches.where){
+                    where=tables.where(matches.where,table);
+                    if(where.error){
+                        return where;
+                    }
+                }
+                let myTable=table;
+                let indexExecuted=0;
+                for (const key in table[Object.keys(table)[0]]) {
+                    if (table[Object.keys(table)[0]].hasOwnProperty(key)) {
+                        if(where){
+                            try {
+                                if(eval(where)){
+                                    indexExecuted++;
+                                    for (const column in table) {
+                                        if (table.hasOwnProperty(column)) {
+                                            delete table[column][key];
+                                        }
+                                    }
+                                }
+                            } catch (error) {
+                                return {error:"Incorrect where statement"}
+                            }
+                        }else{
+                            indexExecuted++;
+                            for (const column in table) {
+                                if (table.hasOwnProperty(column)) {
+                                    delete table[column][key];
+                                }
+                            }
+                        }
+                    }
+                }
+                if(!DBUtils.transaction){
+                    DBUtils.save();
+                }
+                return {message:"Deleted "+indexExecuted+" rows"};
             },
             create:function(query){
                 function getParameters(parameters){
@@ -854,7 +952,7 @@ function IndexSQL(dbName){
                         return {error:"Not supported datatype"};
                 }
             },
-            transform:function(table){
+            transform:function(table,order){
                 let result={header:[],values:[]};
                 let keys=Object.keys(table);
                 for (const key in table) {
@@ -871,6 +969,62 @@ function IndexSQL(dbName){
                         }
                         result.values.push(values);
                     }
+                }
+                if(order){
+                    result.values.sort(
+                        function(a,b){
+                            for (let index = 0; index < order.length; index++) {
+                                const orderElement = order[index];
+                                let orderColumn;
+                                let orderIndex;
+                                for (let index = 0; index < result.header.length; index++) {
+                                    const element = result.header[index];
+                                    if(element.name===orderElement.name){
+                                        orderColumn=element;
+                                        orderIndex=index;
+                                        break;
+                                    }
+                                }
+                                let orderResult;
+                                switch (orderColumn.datatype) {
+                                    case "NUMBER":
+                                        if(a[orderIndex]===b[orderIndex]){
+                                            orderResult=0;
+                                            break;
+                                        }
+                                        if(a[orderIndex]>b[orderIndex]){
+                                            orderResult=1;
+                                        }else{
+                                            orderResult=-1;
+                                        }  
+                                        break;
+                                    case "STRING":
+                                        orderResult=a[orderIndex].localeCompare(b[orderIndex]);
+                                        break;
+                                    case "BOOLEAN":
+                                        orderResult;
+                                        if(a[orderIndex]===b[orderIndex]){
+                                            result=0;
+                                            break;
+                                        }
+                                        if(a[orderIndex]){
+                                            orderResult=1
+                                        }else{
+                                            orderResult=-1;
+                                        }
+                                        break;
+                                }
+                                if(orderResult===0){
+                                    continue;
+                                }
+                                if(orderElement.desc){
+                                    orderResult=-orderResult;
+                                }
+                                return orderResult;
+                            }
+                            return 1;
+                        }
+                    )
                 }
                 return result;
             },
