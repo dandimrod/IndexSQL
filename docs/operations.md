@@ -6,6 +6,7 @@ SQL operations:
 - TRUNCATE TABLE
 - INSERT INTO
 - TABLES
+- UPDATE
 
 Database operations:
 -execute(operation, callback);

@@ -152,6 +152,10 @@ function IndexSQL(dbName){
                         return this.insert(query);
                     case "CREATE":
                         return this.create(query);
+                    case "UPDATE":
+                        return this.update(query);
+                    case "DELETE":
+                        return this.delete(query);
                     case "DROP":
                         return this.drop(query);
                     case "TRUNCATE":
@@ -310,6 +314,135 @@ function IndexSQL(dbName){
                     DBUtils.save();
                 }
                 return result;
+            },
+            update:function(query){
+                function getSet(setStatement){
+                    let keywords=["where"];
+                    let setMatches={set:"",where:""};
+                    let dividedSet=setStatement.split(" ");
+                    let lastMatch="set";
+                    for (let index = 0; index < dividedSet.length; index++) {
+                        const element = dividedSet[index];
+                        if(keywords.includes(element.toLowerCase())){
+                            lastMatch=element.toLowerCase();
+                        }else{
+                            setMatches[lastMatch]=setMatches[lastMatch]+" "+element;
+                        }
+                    }
+                    setMatches.set=setMatches.set.trim();
+                    setMatches.where=setMatches.where!==""?setMatches.where.trim():undefined;
+                    return setMatches;
+                }
+                function getValues(matches,table){
+                    let values=matches.set.split(",");
+                    let result={};
+                    for (let index = 0; index < values.length; index++) {
+                        const element = values[index];
+                        let columnName=tables.finder(table,element.split("=")[0].trim());
+                        if(!columnName){
+                            return {error:"The column "+element.split("=")[0].trim()+" does not belong to the table"}
+                        }
+                        let columnData=element.split("=")[1].trim();
+                        result[columnName]=columnData;
+                    }
+                    return result;
+                }
+                let updateRegex=/^UPDATE\s*(?<tableName>.*)\s*SET(?<set>.*)$/gmi;
+                let matches=updateRegex.exec(query)
+                if(!matches){
+                    return {error:"Not supported operation"};
+                }
+                matches=matches.groups;
+                let matchesSet=getSet(matches.set.trim());
+                matches.set=matchesSet.set;
+                matches.where=matchesSet.where;
+                matches.tableName=matches.tableName.trim();
+                let table = tables.find(data,matches.tableName.trim());
+                if(!table){
+                    return {error:"This table doesn't exists"};
+                }
+                let values=getValues(matches,table);
+                let columnsAffected=Object.keys(values);
+                if(values.error){
+                    return values;
+                }
+                let where;
+                if(matches.where){
+                    where=tables.where(matches.where,table);
+                    if(where.error){
+                        return where;
+                    }
+                }
+                let indexExecuted=0;
+                let error;
+                let myTable=table;
+                for (const key in table[Object.keys(table)[0]]) {
+                    if (table[Object.keys(table)[0]].hasOwnProperty(key)) {
+                        if(where){
+                            try {
+                                if(eval(where)){
+                                    indexExecuted++;
+                                    let columns=[];
+                                    let insertValues=[];  
+                                    for (const column in table) {
+                                        if (table.hasOwnProperty(column)) {
+                                            const element = table[column][key];
+                                            columns.push(column.split(";")[0]);
+                                            if(columnsAffected.includes(column)){
+                                                insertValues.push(values[column]);
+                                            }else{
+                                                if(typeof element ==="string"){
+                                                    insertValues.push("'"+element+"'");
+                                                }else{
+                                                    insertValues.push(element);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let response=this.insert("INSERT INTO "+matches.tableName+" ("+columns.join()+") VALUES ("+insertValues.join()+")");
+                                    if(response.error){
+                                        error=response;
+                                        break;
+                                    }
+                                }
+                            } catch (error) {
+                                return {error:"Incorrect where statement"}
+                            }
+                        }else{
+                            indexExecuted++;
+                            let columns=[];
+                            let insertValues=[];  
+                            for (const column in table) {
+                                if (table.hasOwnProperty(column)) {
+                                    const element = table[column][key];
+                                    columns.push(column.split(";")[0]);
+                                    if(columnsAffected.includes(column)){
+                                        insertValues.push(values[column]);
+                                    }else{
+                                        if(typeof element ==="string"){
+                                            insertValues.push("'"+element+"'");
+                                        }else{
+                                            insertValues.push(element);
+                                        }
+                                    }
+                                }
+                            }
+                            let response=this.insert("INSERT INTO "+matches.tableName+" ("+columns.join()+") VALUES ("+insertValues.join()+")");
+                            if(response.error){
+                                error=response;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if(error){
+                    return error;
+                }else{
+                    return {message:"Updated "+indexExecuted+" rows"}
+                }
+            },
+            delete:function(query){
+
             },
             create:function(query){
                 function getParameters(parameters){

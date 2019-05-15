@@ -11,7 +11,7 @@
 - [ ] ORDER BY Keyword
 - [x] INSERT INTO
 - [x] NULL Values
-- [ ] UPDATE Statement
+- [x] UPDATE Statement
 - [ ] DELETE Statement
 - [ ] TOP, LIMIT or ROWNUM Clause
 - [ ] MIN() and MAX() Functions
