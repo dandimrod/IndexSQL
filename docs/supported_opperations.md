@@ -4,13 +4,13 @@
 - [x] DROP TABLE Statement
 - [ ] ALTER TABLE Statement
 - [ ] SQL Constraints
-- [ ] SELECT
+- [x] SELECT
 - [ ] SELECT DISTINCT
-- [ ] WHERE
-- [ ] AND, OR and NOT Operators
+- [x] WHERE
+- [x] AND, OR and NOT Operators
 - [ ] ORDER BY Keyword
 - [x] INSERT INTO
-- [ ] NULL Values
+- [x] NULL Values
 - [ ] UPDATE Statement
 - [ ] DELETE Statement
 - [ ] TOP, LIMIT or ROWNUM Clause

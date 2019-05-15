@@ -169,22 +169,22 @@ function IndexSQL(dbName){
             select:function(query){
                 function getFrom(fromStatement){
                     let keywords=["where","order"];
-                    let macthes={};
+                    let fromMatches={from:"",where:"",order:""};
                     let dividedFrom=fromStatement.split(" ");
                     let lastMatch="from";
                     for (let index = 0; index < dividedFrom.length; index++) {
                         const element = dividedFrom[index];
                         if(keywords.includes(element.toLowerCase())){
-                            lastMatch=element.toUpperCase();
+                            lastMatch=element.toLowerCase();
                         }else{
-                            macthes[lastMatch]=macthes[lastMatch]+" "+element;
+                            fromMatches[lastMatch]=fromMatches[lastMatch]+" "+element;
                         }
                     }
-                    matches.from=matches.from.trim();
-                    matches.where=macthes.where?matches.where.trim():undefined;
-                    matches.order=matches.order?matches.order.trim():undefined;
-                    macthes.order=matches.order?matches.order.substring(3):undefined;
-                    return matches;
+                    fromMatches.from=fromMatches.from.trim();
+                    fromMatches.where=fromMatches.where!==""?fromMatches.where.trim():undefined;
+                    fromMatches.order=fromMatches.order!==""?fromMatches.order.trim():undefined;
+                    fromMatches.order=fromMatches.order?fromMatches.order.substring(3):undefined;
+                    return fromMatches;
                 }
                 function getColumns(matches,table){
                     let columns;
@@ -224,7 +224,10 @@ function IndexSQL(dbName){
                     return {error:"Not supported operation"};
                 }
                 matches=matches.groups;
-                matches={...getFrom(matches.from.trim()), ...matches};
+                let matchesFrom=getFrom(matches.from.trim());
+                matches.from=matchesFrom.from;
+                matches.where=matchesFrom.where;
+                matches.order=matchesFrom.order;
                 let table = tables.find(data,matches.from);
                 if(!table){
                     return {error:"This table doesn't exists"};
@@ -235,15 +238,34 @@ function IndexSQL(dbName){
                 }
                 let where;
                 if(matches.where){
-                    where=tables.where(save.where);
+                    where=tables.where(matches.where,table);
                     if(where.error){
                         return where;
                     }
                 }
                 let result={};
-                for (const key in table) {
-                    if (table.hasOwnProperty(key)) {
-                        const element = table[key];
+                //This clones the table into a new table
+                let myTable=JSON.parse(JSON.stringify(table));
+                if(where){
+                    for (const key in myTable[Object.keys(myTable)[0]]) {
+                        if (myTable[Object.keys(myTable)[0]].hasOwnProperty(key)) {
+                            try {
+                                if(!eval(where)){
+                                    for (const column in myTable) {
+                                        if (myTable.hasOwnProperty(column)) {
+                                            delete myTable[column][key];
+                                        }
+                                    }
+                                }
+                            } catch (error) {
+                                return {error:"Incorrect where statement"}
+                            }
+                        }
+                    }
+                }
+                for (const key in myTable) {
+                    if (myTable.hasOwnProperty(key)) {
+                        const element = myTable[key];
                         if(columns.includes(key.split(";")[0])){
                             result[key]=element;
                         }
@@ -719,8 +741,111 @@ function IndexSQL(dbName){
                 }
                 return result;
             },
-            where:function(where){
-
+            where:function(where,table){
+                function checkWord(word,columnList){
+                    if(word===""){
+                        return "";
+                    }
+                    if(word.toUpperCase()==="AND"){
+                        return "&&";
+                    }
+                    if(word.toUpperCase()==="OR"){
+                        return "||";
+                    }
+                    if(word.toUpperCase()==="NOT"){
+                        return "!";
+                    }
+                    if(word.toUpperCase()==="IS"){
+                        return "==";
+                    }
+                    if(word.toUpperCase()==="NULL"){
+                        return null;
+                    }
+                    if(word.toUpperCase()==="TRUE"){
+                        return "true";
+                    }
+                    if(word.toUpperCase()==="FALSE"){
+                        return "false";
+                    }
+                    if(columnList.includes(word)){
+                        return "myTable[tables.finder(myTable,'"+word+"')][key]";
+                    }
+                    if(!isNaN(Number(word))){
+                        return Number(word);
+                    }
+                    return "";
+                }
+                let columnList=Object.keys(table);
+                for (let index = 0; index < columnList.length; index++) {
+                    columnList[index] = columnList[index].split(";")[0];
+                }
+                let result="";
+                let dividedWhere=where.split("");
+                let currentWord="";
+                let currentOperation;
+                let onString;
+                for (let index = 0; index < dividedWhere.length; index++) {
+                    const character = dividedWhere[index];
+                    if(!onString){
+                        if(character==="("||character===")"){
+                            result=result+checkWord(currentWord,columnList);
+                            currentWord="";
+                            result=result+character;
+                            continue;
+                        }
+                        //Controls multiple character operations
+                        if(currentOperation){
+                            if(character==="="){
+                                result=result+currentOperation+character;
+                                currentOperation=undefined;
+                                continue;
+                            }
+                            if(character===">"&&currentOperation==="<"){
+                                result=result+"!=";
+                                currentOperation=undefined;
+                                continue;
+                            }
+                            result=result+currentOperation;
+                            currentOperation=undefined;
+                        }
+                        if(character==="<"||character===">"){
+                            result=result+checkWord(currentWord,columnList);
+                            currentWord="";
+                            currentOperation=character;
+                            continue;
+                        }
+                        if(character==="="){
+                            result=result+checkWord(currentWord,columnList);
+                            currentWord="";
+                            result=result+"===";
+                            continue;
+                        }
+                        if(character==='"'||character==="'"){
+                            result=result+checkWord(currentWord,columnList);
+                            currentWord="";
+                            onString={separator:character,word:""};
+                            continue;
+                        }
+                        if(character===" "){
+                            result=result+checkWord(currentWord,columnList);
+                            currentWord="";
+                            continue;
+                        }
+                        currentWord=currentWord+character;
+                    }else{
+                        if(onString.separator===character){
+                            result=result+onString.separator+onString.word+onString.separator;
+                            onString=undefined;
+                        }else{
+                            onString.word=onString.word+character;
+                        }
+                    }
+                    
+                    
+                }
+                result=result+checkWord(currentWord,columnList);
+                currentWord="";
+                return result;
             }
         };
         function createDB(name){
