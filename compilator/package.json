@@ -1,0 +1,14 @@
+{
+  "name": "compilator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "compile.js",
+  "scripts": {
+    "start": "node compile.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "uglify-es": "^3.3.9"
+  }
+}

@@ -36,7 +36,6 @@ function IndexSQL(dbName){
         let store = db.createObjectStore("databases", { keypath : "name"  });
     };
     db.server=function(){
-        debugger;
         let data={};
         var DBUtils={
             name:"",
