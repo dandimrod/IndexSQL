@@ -164,7 +164,7 @@
             font-size: 12px;
         }
   
-        .sidenav-container a:hover{
+        .sidenav-container a:hover, .upper-button:hover{
             color: dodgerblue;
         }
 
@@ -173,6 +173,21 @@
         }
         h1,h2,h3{
             color: dodgerblue;
+        }
+        .upper-button{
+            z-index: 1; /* Stay on top */
+            bottom: 20px; /* Stay at the top */
+            right: 20px;
+            position: fixed;
+            background-color: #ddd;
+            height: auto; /* Full-height: remove this if you want "auto" height */
+            width: auto; /* Set the width of the sidebar */
+            overflow-x: hidden;
+            padding: 10px 10px 10px 10px;
+            text-decoration: none;
+            font-size: 18px;
+            color: #818181;
+            display: inline;
         }
   
   
