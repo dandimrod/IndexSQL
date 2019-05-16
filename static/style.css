@@ -134,6 +134,48 @@
             max-height:100%;
             overflow:auto ;
         }
+        /* The sidebar menu */
+        .sidenav-container{
+            z-index: 1; /* Stay on top */
+            top: 0; /* Stay at the top */
+            left: 0;
+            position: sticky;
+            background-color: #ddd;
+            height: auto; /* Full-height: remove this if you want "auto" height */
+            width: auto; /* Set the width of the sidebar */
+            overflow-x: hidden;
+        }
+        .sidenav-container a{
+            padding: 6px 8px 6px 16px;
+            text-decoration: none;
+            font-size: 18px;
+            color: #818181;
+            display: block;
+        }
+        .sidenav-container .H1{
+            margin-left: 0px;
+        }
+        .sidenav-container .H2{
+            margin-left: 10px;
+            font-size: 15px;
+        }
+        .sidenav-container .H3{
+            margin-left: 20px;
+            font-size: 12px;
+        }
+  
+        .sidenav-container a:hover{
+            color: dodgerblue;
+        }
+
+        .content{
+            margin: 1%
+        }
+        h1,h2,h3{
+            color: dodgerblue;
+        }
+  
+  
         @media screen and (max-width: 500px) {
             .header {
                 padding: 20px;
@@ -167,6 +209,14 @@
             }
             .tables{
                 border-right: none;
+            }
+            .sidenav-container {
+                display: block;
+                position: relative;
+                width: 100%;
+                height: auto;
+                top: auto;
+                padding-top: 0;
             }
         }
     
