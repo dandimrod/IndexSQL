@@ -89,7 +89,6 @@
             color: white; 
             position:relative;
             min-height:4em;
-            margin: 1%;
         }
     
         .inspector {
@@ -112,7 +111,6 @@
             grid-area: table-inspector;
             position:relative;
             min-height:4em;
-            margin: 1%;
         }
     
         table {
