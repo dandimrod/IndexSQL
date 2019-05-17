@@ -106,6 +106,8 @@ class IndexSQL {
             };
             var SQLParser = {
                 parse: function (querys, id) {
+                    //Delete all comments
+                    querys=querys.replace(/(?:\/\*(?:.|\n)*?\*\/|--.*)/g,"");
                     if (DBUtils.loaded) {
                         postMessage({ id, response: SQLParser.parseAll(querys) });
                     }
@@ -136,6 +138,8 @@ class IndexSQL {
                         }
                         if (DBUtils.transaction) {
                             if (response[index].error) {
+                                data={};
+                                DBUtils.loaded=false;
                                 DBUtils.load();
                                 response[index].error = response[index].error + ". Transaction cancelled";
                                 break;
@@ -439,7 +443,7 @@ class IndexSQL {
                                                 }
                                             }
                                         }
-                                        let response = this.insert("INSERT INTO " + matches.tableName + " (" + columns.join() + ") VALUES (" + insertValues.join() + ")");
+                                        let response = tables.insert(matches.tableName,table,insertValues.join().split(","),columns,key);
                                         if (response.error) {
                                             error = response;
                                             break;
@@ -471,7 +475,7 @@ class IndexSQL {
                                         }
                                     }
                                 }
-                                let response = this.insert("INSERT INTO " + matches.tableName + " (" + columns.join() + ") VALUES (" + insertValues.join() + ")");
+                                let response = tables.insert(matches.tableName,table,insertValues.join().split(","),columns,key);
                                 if (response.error) {
                                     error = response;
                                     break;
@@ -852,7 +856,7 @@ class IndexSQL {
                     }
                     return undefined;
                 },
-                insert: function (tableName, table, values, order) {
+                insert: function (tableName, table, values, order, key) {
                     let tableData = tables.finder(data, tableName);
                     let insertData = {};
                     // This generates the data to insert and applies the constraits
@@ -935,7 +939,11 @@ class IndexSQL {
                         }
                     }
                     else {
-                        primaryKey = Object.keys(table[Object.keys(table)[0]]).length;
+                        if(key){
+                            primaryKey=key;
+                        }else{
+                            primaryKey = Object.keys(table[Object.keys(table)[0]]).length;
+                        }
                     }
                     for (const key in table) {
                         if (table.hasOwnProperty(key)) {
@@ -1054,7 +1062,7 @@ class IndexSQL {
                                     case "BOOLEAN":
                                         orderResult;
                                         if (a[orderIndex] === b[orderIndex]) {
-                                            result = 0;
+                                            orderResult = 0;
                                             break;
                                         }
                                         if (a[orderIndex]) {
