@@ -114,8 +114,9 @@
                 element.disabled=true;
             }
         }
-        function drawResults(results){
-            let resultString="";
+        function drawResults(results, time){
+            let difference=(new Date().getTime()-time)/1000;
+            let resultString="<p>Queries executed in "+difference+" s</p><br/>";
             for (let index = 0; index < results.length; index++) {
                 const result = results[index];
                 if(result.error){
@@ -138,7 +139,8 @@
             document.getElementById("result").innerHTML=resultString;
         }
         function submitCode(){
-            indexSQL.execute(editor.getValue(),function(result){drawResults(result)});
+            let time=new Date().getTime();
+            indexSQL.execute(editor.getValue(),function(time){return function(result){drawResults(result,time)}}(time));
             indexSQL.execute("Tables;",function(result){drawTables(result)});
         }
         function drawTables(results){

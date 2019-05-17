@@ -134,6 +134,7 @@ class IndexSQL {
                         }
                         if (DBUtils.transaction) {
                             if (response[index].error) {
+                                DBUtils.load();
                                 response[index].error = response[index].error + ". Transaction cancelled";
                                 break;
                             }
@@ -328,8 +329,7 @@ class IndexSQL {
                     else {
                         for (const key in table) {
                             if (table.hasOwnProperty(key)) {
-                                const element = table[key];
-                                columnOrder[element.split(";")[1]] = element.split(";")[0];
+                                columnOrder[key.split(";")[1]] = key.split(";")[0];
                             }
                         }
                     }
@@ -566,8 +566,8 @@ class IndexSQL {
                             if (parameterString.toUpperCase().includes("KEY")) {
                                 if (parameterString.toUpperCase().includes("PRIMARY")) {
                                     let primaryRegex = /^PRIMARY\s*KEY\s*\((?<varName>.*)\)$/gmi;
-                                    let key = primaryRegex.exec(parameterString).groups["varName"];
-                                    if (result.parameters.find(function (a) { return a.name === key && a.datatype === "NUMBER"; })) {
+                                    let key = primaryRegex.exec(parameterString).groups["varName"].trim();
+                                    if (result.parameters.find(function (a) { return a.name === key /**&&  a.datatype === "NUMBER"*/ ; })) {
                                         result.keys.primary = key;
                                     }
                                     else {
@@ -577,7 +577,10 @@ class IndexSQL {
                                 else {
                                     let foreingRegex = /^^FOREIGN\s*KEY\s*\((?<varName>.*)\)\s*REFERENCES\s*(?<referTable>.*)\((?<referName>.*)\)$/gmi;
                                     let groups = foreingRegex.exec(parameterString).groups;
-                                    if (!result.parameters.find(function (a) { return a.name === groups["varName"] && a.datatype === "NUMBER"; })) {
+                                    groups.varName=groups.varName.trim();
+                                    groups.referTable=groups.referTable.trim();
+                                    groups.referName=groups.referName.trim();
+                                    if (!result.parameters.find(function (a) { return a.name === groups["varName"] /**&& a.datatype === "NUMBER"*/; })) {
                                         return { error: "FOREIGN KEY does not exist" };
                                     }
                                     if (!tables.find(tables.find(data, groups["referTable"]), groups["referName"])) {
@@ -869,9 +872,13 @@ class IndexSQL {
                                     value = Object.keys(column).length;
                                 }
                             }
-                            if (value.error) {
-                                return value;
-                            }
+                            if(value){
+                                if(value!==null){
+                                    if (value.error) {
+                                        return value;
+                                    }
+                                }
+                            } 
                             if (constraints.includes("NOT_NULL")) {
                                 if (value === null) {
                                     return { error: "Value of column " + columnName + " cannot be null" };
@@ -933,6 +940,9 @@ class IndexSQL {
                     return { message: "Values inserted succesfully" };
                 },
                 checkDatatype: function (datatype, value) {
+                    if(value.toUpperCase().includes("NULL")){
+                        return null;
+                    }
                     switch (datatype) {
                         case "STRING":
                             let regexString = /^(?:"(?<string1>.*)"|'(?<string2>.*)')$/gmi;
@@ -941,11 +951,17 @@ class IndexSQL {
                                 return { error: "Value " + value + " is supposed to be a string" };
                             }
                             match = match.groups;
-                            if (match.string1) {
+                            if (match.string1||match.string1==="") {
+                                if(match.string1===""){
+                                    return "";
+                                }
                                 return match.string1;
                             }
                             else {
-                                if (match.string2) {
+                                if (match.string2||match.string2==="") {
+                                    if(match.string2===""){
+                                        return "";
+                                    }
                                     return match.string2;
                                 }
                                 else {
@@ -1181,7 +1197,8 @@ class IndexSQL {
         db.callbacks = [];
         if (window.indexedDB) {
             if (typeof (Worker) !== "undefined") {
-                db.worker = new Worker(URL.createObjectURL(new Blob(["(" + db.server.toString().slice(0, -1) + "createDB('" + dbName + "');})()"], { type: 'text/javascript' })));
+                db.worker = new Worker(URL.createObjectURL(new Blob(["(" + db.server.toString().slice(0, -1) +
+                 "createDB('" + dbName + "');})()"], { type: 'text/javascript' })));
                 db.worker.onmessage = function (e) {
                     if (e.data.end) {
                         db.worker.terminate();

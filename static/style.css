@@ -60,7 +60,7 @@
         .demo-container {
         height:auto !important; /* real browsers */
         margin:0 auto; /* center, not in IE5 */
-        min-height:100%; /* real browsers */
+        min-height:90%; /* real browsers */
         width: 100%;
         display: grid;
         grid-template-columns: 1fr;
