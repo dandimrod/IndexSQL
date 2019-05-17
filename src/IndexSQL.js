@@ -125,11 +125,13 @@ class IndexSQL {
                         response[index] = this.parser(query);
                         if (response[index].result) {
                             if (response[index].order) {
-                                response[index].result = tables.transform(response[index].result, response[index].order);
+                                response[index].result = tables.transform(response[index].result, response[index].distinct,response[index].order);
                                 delete response[index].order;
+                                delete response[index].distinct;
                             }
                             else {
-                                response[index].result = tables.transform(response[index].result);
+                                response[index].result = tables.transform(response[index].result, response[index].distinct);
+                                delete response[index].distinct;
                             }
                         }
                         if (DBUtils.transaction) {
@@ -268,6 +270,10 @@ class IndexSQL {
                             return where;
                         }
                     }
+                    let distinct=false;
+                    if(matches.distinct){
+                        distinct=true;
+                    }
                     let result = {};
                     //This clones the table into a new table
                     let myTable = JSON.parse(JSON.stringify(table));
@@ -302,10 +308,10 @@ class IndexSQL {
                         if (order.error) {
                             return order;
                         }
-                        return { result: result, order: order };
+                        return { result: result, distinct:distinct, order: order };
                     }
                     else {
-                        return { result: result };
+                        return { result: result, distinct:distinct };
                     }
                 },
                 insert: function (query) {
@@ -988,7 +994,7 @@ class IndexSQL {
                             return { error: "Not supported datatype" };
                     }
                 },
-                transform: function (table, order) {
+                transform: function (table, distinct, order) {
                     let result = { header: [], values: [] };
                     let keys = Object.keys(table);
                     for (const key in table) {
@@ -1003,6 +1009,14 @@ class IndexSQL {
                                 const column = keys[index];
                                 values.push(table[column][key]);
                             }
+                            if(distinct){
+                                let exist=result.values.find(function(element){
+                                    return JSON.stringify(element)===JSON.stringify(values);
+                                })
+                                if(exist){
+                                   continue;
+                                }
+                            } 
                             result.values.push(values);
                         }
                     }

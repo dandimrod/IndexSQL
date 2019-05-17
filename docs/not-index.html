@@ -159,12 +159,15 @@
                 SELECT
             </h2>
             <p>
-                Syntax:”SELECT column1, column2, ... FROM table_name &lt;WHERE
+                Syntax:”SELECT &lt;DISTINCT&gt; column1, column2, ... FROM table_name &lt;WHERE
                 condition&gt; &lt;ORDER BY column1 ASC|DESC, column2 ASC|DESC, ... ;&gt;”
             </p>
             <p>
                 It will return the values selected. To select all columns, you can write an
                 asterisk (*) instead.
+            </p>
+            <p>
+                The DISTINCT parameter will make any rows that are the same to collapse into one.
             </p>
             <p>
                 The WHERE and ORDER BY statements are optional.
@@ -491,7 +494,7 @@
                     [x] SELECT
                 </li>
                 <li>
-                    [ ] SELECT DISTINCT
+                    [x] SELECT DISTINCT
                 </li>
                 <li>
                     [x] WHERE
@@ -584,7 +587,7 @@
                     [ ] CASE Statement
                 </li>
                 <li>
-                        [ ] NULL Functions
+                    [ ] NULL Functions
                 </li>
             </ul>
         </div>

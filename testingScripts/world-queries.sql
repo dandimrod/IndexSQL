@@ -1,0 +1,1 @@
+select distinct Language from countrylanguage;

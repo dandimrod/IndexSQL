@@ -4357,7 +4357,6 @@ CREATE TABLE countrylanguage (
     Language string NOT_NULL DEFAULT '',
     IsOfficial boolean NOT_NULL DEFAULT false,
     Percentage number NOT_NULL DEFAULT 0.0,
-    PRIMARY KEY (Language),
     FOREIGN KEY (CountryCode) REFERENCES country (Code)
 );
 

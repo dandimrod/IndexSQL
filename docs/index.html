@@ -67,27 +67,14 @@ Warning! The system wont perform any checks on this backup. An incorrect restore
 <ul>
 <li><code>backup</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object">Object</a></strong> The backup of the whole database.</li>
 </ul>
-<h2 id="tableresultheader">tableResultHeader</h2>
-<p>The headers of a result table</p>
-<p>Type: <a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object">Object</a></p>
-<h3 id="properties">Properties</h3>
-<ul>
-<li><code>name</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">String</a></strong> Name of the header.</li>
-<li><code>datatype</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">String</a></strong> The datatype of the header.</li>
-<li><code>constraints</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">string</a></strong> The constraints of the header, separed by commas ",".</li>
-</ul>
-<h2 id="tableresult">tableResult</h2>
-<p>The result table of a query.</p>
-<p>Type: <a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object">Object</a></p>
-<h3 id="properties-1">Properties</h3>
-<ul>
-<li><code>header</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>&lt;<a href="#tableresultheader">tableResultHeader</a>></strong> It is a list of the headers of this table and it's properties.</li>
-<li><code>values</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>&lt;<a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>></strong> It is a list of the rows returned by the query, it consists of a list of the values with the same order as the header.</li>
-</ul>
+<h2 id=""> </h2>
+<p>&amp;&amp;  a.datatype === "NUMBER"</p>
+<h2 id="-1"> </h2>
+<p>&amp;&amp; a.datatype === "NUMBER"</p>
 <h2 id="queryresult">queryResult</h2>
 <p>The result of a IndexSQL query. It will contain at least one of these properties.</p>
 <p>Type: <a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object">Object</a></p>
-<h3 id="properties-2">Properties</h3>
+<h3 id="properties">Properties</h3>
 <ul>
 <li><code>message</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">String</a>?</strong> A message, it usually means that the query has been executed sucessfully.</li>
 <li><code>warn</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">String</a>?</strong> A warn, it means an error was detected, but it won't stop a transaction. Example: Dropping a table that does not exist.</li>
@@ -100,6 +87,23 @@ Warning! The system wont perform any checks on this backup. An incorrect restore
 <h3 id="parameters-4">Parameters</h3>
 <ul>
 <li><code>results</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>&lt;<a href="#queryresult">queryResult</a>></strong> An array with the results of the queries.</li>
+</ul>
+<h2 id="tableresultheader">tableResultHeader</h2>
+<p>The headers of a result table</p>
+<p>Type: <a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object">Object</a></p>
+<h3 id="properties-1">Properties</h3>
+<ul>
+<li><code>name</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">String</a></strong> Name of the header.</li>
+<li><code>datatype</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">String</a></strong> The datatype of the header.</li>
+<li><code>constraints</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String">string</a></strong> The constraints of the header, separed by commas ",".</li>
+</ul>
+<h2 id="tableresult">tableResult</h2>
+<p>The result table of a query.</p>
+<p>Type: <a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Object">Object</a></p>
+<h3 id="properties-2">Properties</h3>
+<ul>
+<li><code>header</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>&lt;<a href="#tableresultheader">tableResultHeader</a>></strong> It is a list of the headers of this table and it's properties.</li>
+<li><code>values</code> <strong><a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>&lt;<a href="https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Array">Array</a>></strong> It is a list of the rows returned by the query, it consists of a list of the values with the same order as the header.</li>
 </ul>
 <h2 id="dbbackupcallback">dbBackupCallback</h2>
 <p>Callback for backup execution.</p>
@@ -231,12 +235,15 @@ Warning! The system wont perform any checks on this backup. An incorrect restore
                 SELECT
             </h2>
             <p>
-                Syntax:”SELECT column1, column2, ... FROM table_name &lt;WHERE
+                Syntax:”SELECT &lt;DISTINCT&gt; column1, column2, ... FROM table_name &lt;WHERE
                 condition&gt; &lt;ORDER BY column1 ASC|DESC, column2 ASC|DESC, ... ;&gt;”
             </p>
             <p>
                 It will return the values selected. To select all columns, you can write an
                 asterisk (*) instead.
+            </p>
+            <p>
+                The DISTINCT parameter will make any rows that are the same to collapse into one.
             </p>
             <p>
                 The WHERE and ORDER BY statements are optional.
@@ -563,7 +570,7 @@ Warning! The system wont perform any checks on this backup. An incorrect restore
                     [x] SELECT
                 </li>
                 <li>
-                    [ ] SELECT DISTINCT
+                    [x] SELECT DISTINCT
                 </li>
                 <li>
                     [x] WHERE
@@ -656,7 +663,7 @@ Warning! The system wont perform any checks on this backup. An incorrect restore
                     [ ] CASE Statement
                 </li>
                 <li>
-                        [ ] NULL Functions
+                    [ ] NULL Functions
                 </li>
             </ul>
         </div>
