@@ -1,6 +1,6 @@
 // The MIT License
 
-// Copyright 2019 Daniel Diment Rodríguez https://dandimrod.github.io
+// Copyright 2020 Daniel Diment Rodríguez https://dandimrod.dev
 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
