@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8" />
+    <title>IndexSQL</title>
+    <meta name="Description" content="Project that simplifies the use of IndexedDB by making it compatible with SQL like sintaxis.">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="/IndexSQL/static/IndexSQL.png">
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="header">
+        <a href="/IndexSQL/" class="logo"><img src="/IndexSQL/static/IndexSQL.png" alt="logo" height="30"> IndexSQL</a>
+        <div class="header-right">
+            <a href="/IndexSQL/">Home</a>
+            <a class="active" href="/IndexSQL/demo.html">Demo</a>
+            <a href="/IndexSQL/docs/">Docs</a>
+            <a href="https://github.com/dandimrod/IndexSQL">Git Repository</a>
+        </div>
+    </div>
+    <div class="demo-container">
+        <div class="console-container">
+            <div class="execute">
+                <div class="scrollable">
+                    <textarea id="code"></textarea><br/>
+                    <button onclick="submitCode()" id="submit">Submit ></button><br/>
+                    <button onclick="backup()">Backup DB</button><br/>
+                    <button onclick="restore()">Restore DB from code</button><br/>
+                    <button onclick="if(confirm('ARE YOU SURE YOU WANT TO DROP THE DATABASE?\nYou have to reload the page to continue using the demo')){drop()}">Drop DB</button>
+                </div>
+            </div>
+            <div class="console">
+                <div class="scrollable" id="result" style="margin: 1%;">
+                </div>
+            </div>
+        </div>
+        <div class="inspector">
+            <div class="tables" >
+                <div class="scrollable" id="tables"></div>
+            </div>
+            <div class="table-inspector" >
+                <div id="table-inspector" class="scrollable" style="margin: 1%;"></div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.44.0/codemirror.min.css">
+    <script src="src/IndexSQL2.js"></script>
+    <script>
+        var codeElement=document.getElementById("code");
+        var editor=CodeMirror.fromTextArea(codeElement, {
+            mode: 'text/x-mariadb',
+            indentWithTabs: true,
+            smartIndent: true,
+            lineNumbers: true,
+            matchBrackets : true,
+            autofocus: true,
+        });
+        editor.getDoc().setValue(
+            `START TRANSACTION;
+    DROP TABLE Persons;
+    DROP TABLE Orders;
+    CREATE TABLE Persons (
+        PersonID number NOT_NULL AUTO_INCREMENT,
+        Name string NOT_NULL,
+        IsMale boolean NOT_NULL,
+        PRIMARY KEY (PersonID)
+    );
+    CREATE TABLE Orders (
+        OrderID number NOT_NULL AUTO_INCREMENT,
+        OrderNumber number NOT_NULL,
+        PersonID number,
+        PRIMARY KEY (OrderID),
+        FOREIGN KEY (PersonID) REFERENCES Persons(PersonID)
+    );
+    INSERT INTO Persons (Name, IsMale)
+        VALUES ("pipo", true);
+    INSERT INTO Persons (Name, IsMale)
+        VALUES ("pepa", false);
+    INSERT INTO Orders (OrderNumber, PersonID) 
+        VALUES (1,0);
+    SELECT Name FROM Persons;
+    SELECT Name,IsMale FROM Persons ORDER BY Name, IsMale DESC;
+    SELECT * FROM Persons ORDER BY PersonID DESC;
+    SELECT * FROM Persons WHERE Name="pipo";
+    SELECT * FROM Persons WHERE IsMale=false;
+    SELECT * FROM Persons WHERE PersonID=0;
+    SELECT * FROM Persons WHERE Name="pipo" OR IsMale=false;
+    SELECT * FROM Persons WHERE Name="pipo" AND IsMale=false;
+    SELECT * FROM Persons WHERE NOT( Name="pipo" AND IsMale=false);
+    UPDATE Persons SET IsMale=false;
+    SELECT * FROM Persons;
+    UPDATE Persons SET IsMale=true WHERE Name="pipo";
+    SELECT * FROM Persons;
+    DELETE FROM Orders;
+    SELECT * FROM Orders;
+    DELETE FROM Persons WHERE IsMale=false;
+    SELECT * FROM Persons;
+    END TRANSACTION;`);
+        var indexSQL=new IndexSQL("demo");
+        async function backup(){
+            document.getElementById("result").innerHTML=JSON.stringify(await indexSQL.promise.manualBackup());
+        }
+        function restore(){
+            indexSQL.manualRestore(JSON.parse(editor.getValue()));
+        }
+        function drop(){
+            indexSQL.drop();
+            document.getElementById("result").innerHTML="<p style='color:red;'>DATABASE HAS BEEN DROPPED</>";
+            let buttons=document.getElementsByTagName("button");
+            for (let index = 0; index < buttons.length; index++) {
+                const element = buttons[index];
+                element.disabled=true;
+            }
+        }
+        function drawResults(results, time){
+            let difference=(new Date().getTime()-time)/1000;
+            let resultString="<p>Queries executed in "+difference+" s</p><br/>";
+            for (let index = 0; index < results.length; index++) {
+                const result = results[index];
+                if(result.error){
+                    resultString=resultString+"<p style='color:red;'>Error in command "+(index+1)+": "+result.error+"</p>";
+                    continue;
+                }
+                if(result.message){
+                    resultString=resultString+"<p>Message from command "+(index+1)+": "+result.message+"</p>";
+                    continue;
+                }
+                if(result.warn){
+                    resultString=resultString+"<p style='color:orange;'>Warn in command "+(index+1)+": "+result.warn+"</p>";
+                    continue;
+                }
+                if(result.result){
+                    resultString=resultString+"<p>Result from command "+(index+1)+": </p>"+tableDrawer(result.result);
+                    continue;
+                }
+            }
+            document.getElementById("result").innerHTML=resultString;
+        }
+        function submitCode(){
+            let time=new Date().getTime();
+            indexSQL.execute(editor.getValue(),function(time){
+                return function(result){
+                    drawResults(result,time);
+                    indexSQL.execute("show Tables;",function(result){
+                        drawTables(result)});
+                    }
+                }(time));
+        }
+        function drawTables(results){
+            let tables=results[0].result;
+            let tablesString="<h2>Table inspector</h2>";
+            for (let index = 0; index < tables.values.length; index++) {
+                const element = tables.values[index][0];
+                tablesString=tablesString+"<button onclick='drawTable(\""+element+"\");' class='tableButton' id='button"+element+"'>"+element+"</button><br/>"
+            }
+            document.getElementById("tables").innerHTML=tablesString;
+        }
+        function drawTable(table){
+            let tableButtons=document.getElementsByClassName("tableButton");
+            for (let index = 0; index < tableButtons.length; index++) {
+                const element = tableButtons[index];
+                if(element.id==="button"+table){
+                    element.classList.add("active");
+                }else{
+                    element.classList.remove("active");
+                }
+            }
+            indexSQL.execute("SELECT * FROM "+table+";",function(tableName){
+                return function(result){
+                    let table=result[0].result;
+                    let tablesString="<h2>Showing table "+tableName+"</h2>"+tableDrawer(table);
+                    document.getElementById("table-inspector").innerHTML=tablesString;
+                }
+            }(table));
+        }
+        function tableDrawer(table){
+            let tableString="<table><tr>";
+            for (let index = 0; index < table.header.length; index++) {
+                const element = table.header[index];
+                tableString=tableString+"<th title='"+element.constraints+"'>"+element.name+"</th>";
+            }
+            tableString=tableString+"</tr>";
+            for (let index = 0; index < table.values.length; index++) {
+                const values = table.values[index];
+                tableString=tableString+"<tr>";
+                for (let index2 = 0; index2 < values.length; index2++) {
+                    const value = values[index2];
+                    tableString=tableString+"<td>"+value+"</td>";
+                }
+                tableString=tableString+"</tr>";
+            }           
+            tableString=tableString+"</table>";
+            return tableString;
+        }
+        indexSQL.execute("Show tables;",function(result){drawTables(result)});
+    </script>
+</body>
