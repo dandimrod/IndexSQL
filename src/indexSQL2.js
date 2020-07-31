@@ -68,9 +68,9 @@ function IndexSQL(dbName, userOptions) {
     }
     db.server = function (dbName, tech, options) {
 
-        let dbTechs={
-            "indexdb" : {
-                init: function(){
+        let dbTechs = {
+            "indexdb": {
+                init: function () {
                     let requestDB = indexedDB.open("IndexSQL", 1);
                     requestDB.onerror = function (event) {
                         log.warn("Database error: " + event.target.errorCode);
@@ -95,12 +95,12 @@ function IndexSQL(dbName, userOptions) {
                             //SAVED
                         };
                         var objectStore = transaction.objectStore("databases");
-                        objectStore.put({data}, dbName)
+                        objectStore.put({ data }, dbName)
                         //baker.compress(db.exportDb()).then((result)=>{objectStore.put({ data: result }, dbName);})
                     };
                 },
                 load: function () {
-                    return new Promise((resolve,reject)=>{
+                    return new Promise((resolve, reject) => {
                         let requestDB = indexedDB.open("IndexSQL", 1);
                         requestDB.onerror = function (event) {
                             log.warn("Database error: " + event.target.errorCode);
@@ -114,7 +114,7 @@ function IndexSQL(dbName, userOptions) {
                             transaction.oncomplete = function (event) {
                                 if (request.result) {
                                     //baker.decompress(request.result.data).then((result)=>{data = new Database(result,options)});
-                                    resolve(request.result);
+                                    resolve(request.result.data);
                                 }
                                 else {
                                     reject();
@@ -124,10 +124,10 @@ function IndexSQL(dbName, userOptions) {
                             var request = objectStore.get(dbName);
                         };
                     })
-                    
+
                 },
                 drop: function () {
-                    return new Promise((resolve)=>{
+                    return new Promise((resolve) => {
                         let requestDB = indexedDB.open("IndexSQL", 1);
                         requestDB.onerror = function (event) {
                             log.warn("Database error: " + event.target.errorCode);
@@ -148,36 +148,36 @@ function IndexSQL(dbName, userOptions) {
                 }
             },
             "localstorage": {
-                init:function(){
+                init: function () {
                 },
-                load:function(){
-                    return new Promise((resolve,reject)=>{
-                        let db=localStorage.getItem(dbName);
-                        if(db!==null){
+                load: function () {
+                    return new Promise((resolve, reject) => {
+                        let db = localStorage.getItem(dbName);
+                        if (db !== null) {
                             resolve(db)
-                        }else{
+                        } else {
                             reject();
                         }
                     })
-                    
+
                 },
-                save:function(data){
-                    localStorage.setItem(dbName,data)
+                save: function (data) {
+                    localStorage.setItem(dbName, data)
                 },
-                drop:function(){
-                    return new Promise((resolve)=>{
+                drop: function () {
+                    return new Promise((resolve) => {
                         localStorage.removeItem(dbName);
                         resolve();
                     })
                 }
             },
-            "none":{
-                db:"",
-                init:function(){
+            "none": {
+                db: "",
+                init: function () {
                 },
-                load:function(){
-                    return new Promise((resolve,reject)=>{
-                        if (this.db!=="") {
+                load: function () {
+                    return new Promise((resolve, reject) => {
+                        if (this.db !== "") {
                             resolve(this.db);
                         }
                         else {
@@ -185,37 +185,38 @@ function IndexSQL(dbName, userOptions) {
                         }
                     })
                 },
-                save:function(data){
-                    db=data;
+                save: function (data) {
+                    db = data;
                 },
-                drop:function(){
-                    return new Promise((resolve)=>{
-                        this.db="";
+                drop: function () {
+                    return new Promise((resolve) => {
+                        this.db = "";
                         resolve();
                     })
                 }
             }
         }
-        let dbUtils=function(tech){
-            let databaseTech=dbTechs[tech]
-            let resultTech={
-                loaded:false,
-                init:function () {
+        let dbUtils = function (tech) {
+            let databaseTech = dbTechs[tech]
+            let resultTech = {
+                loaded: false,
+                init: function () {
                     databaseTech.init();
-                    this.load;
+                    this.load();
                 },
-                save:async function () {
-                    let data= await db.exportDb();
+                save: async function () {
+                    let data = await db.exportDb();
                     databaseTech.save(data);
                 },
-                load:function () {
-                    databaseTech.load().then((result)=>{
-                        db=new Database(result, options);
-                    }).catch(()=>{
+                load: function () {
+                    databaseTech.load().then((result) => {
+                        db = new Database(result, options);
+                    }).catch(() => {
+                        db = new Database(undefined, options);
                         this.save();
                     })
                 },
-                drop:function () {
+                drop: function () {
                     databaseTech.drop().then();
                 }
             }
@@ -223,7 +224,7 @@ function IndexSQL(dbName, userOptions) {
             return resultTech;
         }(tech);
 
-        function Database(database,options) {
+        function Database(database, options) {
             function Baker(secret) {
                 //Credits to https://gist.github.com/rafaelsq/5af573af7e2d763869e2f4cce0a8357a
                 const hexToBuf = hex => {
@@ -231,12 +232,12 @@ function IndexSQL(dbName, userOptions) {
                         bytes.push(parseInt(hex.substr(c, 2), 16));
                     return new Uint8Array(bytes);
                 };
-    
+
                 const bufToHex = buf => {
                     var byteArray = new Uint8Array(buf);
                     var hexString = "";
                     var nextHexByte;
-    
+
                     for (var i = 0; i < byteArray.byteLength; i++) {
                         nextHexByte = byteArray[i].toString(16);
                         if (nextHexByte.length < 2) {
@@ -246,35 +247,35 @@ function IndexSQL(dbName, userOptions) {
                     }
                     return hexString;
                 };
-    
+
                 const strToBuf = str => (new TextEncoder().encode(str));
                 const bufToStr = str => (new TextDecoder().decode(str));
-    
+
                 // Encrypt
                 const encrypt = (data, key, iv, mode) =>
                     crypto.subtle.importKey("raw", key, { name: mode }, true, ["encrypt", "decrypt"])
                         .then(bufKey => crypto.subtle.encrypt({ name: mode, iv }, bufKey, data))
-    
+
                 // Decrypt
                 const decrypt = (data, key, iv, mode) =>
                     crypto.subtle.importKey("raw", key, { name: mode }, true, ["encrypt", "decrypt"])
                         .then(bufKey => crypto.subtle.decrypt({ name: mode, iv }, bufKey, data))
-    
+
                 // PBKDF2
                 const pbkdf2 = (password, salt, iterations, hash, mode) =>
                     crypto.subtle.importKey("raw", password, { name: "PBKDF2" }, false, ["deriveKey"])
                         .then(baseKey => crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations, hash }, baseKey, { "name": mode, "length": 256 }, true, ["encrypt", "decrypt"]))
                         .then(key => crypto.subtle.exportKey("raw", key))
-    
+
                 const encStr = async (data, password) => {
                     const salt = crypto.getRandomValues(new Uint8Array(16))
                     const iv = crypto.getRandomValues(new Uint8Array(16))
                     const iterations = 20000
                     const hash = 'SHA-256'
                     const mode = 'AES-GCM'
-    
+
                     const keyBuf = await pbkdf2(strToBuf(password), salt, iterations, hash, mode);
-                    const buf = encrypt(strToBuf(data), keyBuf, iv, mode);
+                    const buf = await encrypt(strToBuf(data), keyBuf, iv, mode);
                     return btoa(
                         JSON.stringify({
                             hash,
@@ -285,12 +286,12 @@ function IndexSQL(dbName, userOptions) {
                             data: bufToHex(buf),
                         }));
                 }
-    
+
                 const decStr = async (raw, password) => {
                     const {
                         salt, iterations, hash, mode, iv, data,
                     } = JSON.parse(atob(raw))
-    
+
                     const key = await pbkdf2(strToBuf(password), hexToBuf(salt), iterations, hash, mode);
                     const buf = await decrypt(hexToBuf(data), key, hexToBuf(iv), mode);
                     return bufToStr(buf);
@@ -352,7 +353,12 @@ function IndexSQL(dbName, userOptions) {
                         return await encStr(data, secret);
                     }
                     decompress = async function (data) {
-                        return await decStr(data, secret);
+                        try{
+                            return await decStr(data, secret);
+                        }catch(err){
+                            postMessage({badPassword:true})
+                            throw "INDEXSQL ERROR: Bad Password"
+                        }
                     }
                 } else {
                     compress = async function (data) {
@@ -362,100 +368,218 @@ function IndexSQL(dbName, userOptions) {
                         return lzw_decode(data)
                     }
                 }
-    
+
                 return { compress, decompress }
+            }
+            function commit() {
+                if (!transaction) {
+                    if(options.backup){
+                        returnDb.exportDb().then((data)=>{
+                            postMessage({backup:data})
+                        })
+                    }
+                    dbUtils.save();
+                }
+            }
+            function checkTransaction() {
+                if (transaction && errorOnTransaction) {
+                    return { error: "Transaction Failed" }
+                }
+            }
+            function endedOnError() {
+                if (transaction) {
+                    errorOnTransaction = true;
+                }
             }
             let db;
             let transaction;
-            let baker=new Baker(options.encrypt)
-            if(!database){
-                db={
+            let errorOnTransaction = false;
+            let baker = new Baker(options.encrypt)
+            if (!database) {
+                db = {
                     //tables
-                    t:{},
+                    t: {},
                     //metadata
-                    m:{
+                    m: {
                         //cachedCalls
-                        c:[]
+                        c: []
                     }
                 }
-                dbUtils.loaded=true;
-            }else{
-                baker.decompress(database).then((data)=>{
-                    db=JSON.parse(data);
-                    dbUtils.loaded=true;
+                dbUtils.loaded = true;
+            } else {
+                baker.decompress(database).then((data) => {
+                    db = JSON.parse(data);
+                    dbUtils.loaded = true;
                 })
             }
-            return {
-                exportDb:async function(){
-                    return await baker.compress(JSON.stringify(database));
+            let returnDb= {
+                exportDb: async function () {
+                    return await baker.compress(JSON.stringify(db));
                 },
-                tables:{
-                    getTables:function () {
-                        return Object.keys(db.t);
+                updateOptions:function(newOptions){
+                    options={options,...newOptions}
+                    baker = new Baker(options.encrypt)
+                    commit()
+                    return {message:"Options updated"}
+                },
+                tables: {
+                    getTables: function () {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                        return { result: Object.keys(db.t) };
                     },
-                    createTable:function () {
-                        
+                    createTable: function (name, columns) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                        if (db.t[name]) {
+                            endedOnError();
+                            return { error: "Table " + name + " already exists" };
+                        }
+                        let table = {
+                            //values
+                            v: {},
+                            //columns
+                            c: {},
+                            //parents
+                            p: [],
+                            //decendants
+                            d: [],
+                            //key
+                            k: []
+                        }
+                        if (columns.keys.primary.length !== 0) {
+                            let error = false;
+                            columns.keys.primary.forEach((key) => { if (!columns.cols[key]) { error = key } })
+                            if (error) {
+                                endedOnError();
+                                return { error: "The table does not contain the primary key: " + error }
+                            }
+                            table.key = columns.keys.primary;
+                        }
+                        if (columns.keys.foreign.length !== 0) {
+                            let error = false;
+                            columns.keys.foreign.forEach((key) => { if (!columns.cols[key.col]) { error = key.col } })
+                            if (error) {
+                                endedOnError();
+                                return { error: "The table does not contain the foreign key: " + error }
+                            }
+                            table.key = columns.keys.primary;
+                        }
+                        table.c = columns.col;
+                        db.t[name] = table;
+                        commit();
+                        return { message: "Table " + name + " created" };
                     },
-                    deleteTable:function () {
-                        
+                    deleteTable: function (name) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                        if(!db.t[name]){
+                            return {warn:"Table "+name+" does not exist"};
+                        }
+                        delete db.t[name];
+                        for (const tableName in db.t) {
+                            if (db.t.hasOwnProperty(tableName)) {
+                                const table = db.t[tableName];
+                                table.p=table.p.filter((element)=>element.refTable!==name);
+                                table.d=table.d.filter((element)=>element.refTable!==name);
+                            }
+                        }
+                        commit()
+                        return {message:"Table "+name+" was dropped succesfully"};
                     },
-                    alterTable:function () {
-                        
-                    }},
-                data:{
-                    getData:function (table) {
-                        
-                    },
-                    createData:function (table) {
-                        
-                    },
-                    deleteData:function (table) {
-                        
-                    },
-                    alterData:function (table) {
-                        
+                    alterTable: function () {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
                     }
                 },
-                utils:{
-                    startTransaction:function () {
-                        
+                data: {
+                    getData: function (table) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
                     },
-                    endTransaction:function () {
-                        
+                    createData: function (table) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                    },
+                    deleteData: function (table) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                    },
+                    alterData: function (table) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                    }
+                },
+                utils: {
+                    startTransaction: function () {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                        if (transaction) {
+                            return { warn: "Already on a transaction" }
+                        } else {
+                            transaction = JSON.parse(JSON.stringify(db));
+                            return { message: "Starting Transaction" }
+                        }
+                    },
+                    endTransaction: function () {
+                        if (!transaction) {
+                            return { error: "Not in a transaction" }
+                        } else {
+                            if (errorOnTransaction) {
+                                db = JSON.parse(JSON.stringify(transaction));
+                                transaction = undefined;
+                                errorOnTransaction = false;
+                                return { message: "Rolled back transaction sucessfully" }
+                            } else {
+                                transaction = undefined;
+                                commit();
+                                return { message: "Transaction completed" }
+                            }
+                        }
                     }
                 }
             }
+            return returnDb;
         }
-        let db=new Database(undefined,options);
+        let db;
 
         let IndexSQLParser = {
-            "parse": function (text,id){
+            "parse": function (text, id) {
                 if (dbUtils.loaded) {
                     postMessage({ id, response: this.parseText(text) });
                 }
                 else {
-                    setTimeout(()=>{
+                    setTimeout(() => {
                         this.parse(text, id);
                     }, 500);
                 }
             },
             "parseText": function (text) {
                 //Delete all comments
-                text=text.replace(/(?:\/\*(?:.|\n)*?\*\/|--.*)/g,"");
+                text = text.replace(/(?:\/\*(?:.|\n)*?\*\/|--.*)/g, "");
 
                 let lines = text.split(";");
-                lines = lines.map((line) => { return line.replace("\n", " ") });
-                lines=lines.filter((line)=>{return line.trim().length!==0})
+                lines = lines.map((line) => { return line.replace(/\n/g, " ").trim() });
+                lines = lines.filter((line) => { return line.trim().length !== 0 })
                 let result = lines.map((line) => {
-                        return this.parseCommand(line);
+                    return this.parseCommand(line);
                 })
                 return result;
             },
             "parseCommand": function (line) {
                 let result;
-                let queryArray = this.utils.generateQueryArray(line);
+                let queryArray = line.split(" ")//this.utils.generateQueryArray(line);
                 if (this.commands[queryArray[0].toLowerCase()]) {
-                    result = this.commands[queryArray[0].toLowerCase()](...queryArray.slice(1));
+                    result = this.commands[queryArray[0].toLowerCase()](line);
                 } else {
                     result = { "error": "Operation not supported" };
                 }
@@ -463,113 +587,142 @@ function IndexSQL(dbName, userOptions) {
             },
             "commands": {
                 "select": function (...query) {
-                    return{error:"operation not supported"};
-                    try{
+                    return { error: "operation not supported" };
+                    try {
                         let distint;
                         if (query[0].toLowerCase === "distint") {
                             distint = true;
                             query = query.slice(1);
                         }
-                        let spittedQuery = IndexSQLParser.utils.spitter(query,["from", ["where", "order by"]],"columns");
+                        let spittedQuery = IndexSQLParser.utils.spitter(query, ["from", ["where", "order by"]], "columns");
                         if (spittedQuery.from.length !== 1 || spittedQuery.columns.length === 0) {
                             return { "error": "Query malformed" };
                         }
-                        let table=IndexSQLParser.utils.getTable(spittedQuery.from[0]);
-                        let columns=IndexSQLParser.utils.getTable(table,spittedQuery.columns);
-                    }catch(err){
-                        return { "error":err}
+                        let table = IndexSQLParser.utils.getTable(spittedQuery.from[0]);
+                        let columns = IndexSQLParser.utils.getTable(table, spittedQuery.columns);
+                    } catch (err) {
+                        return { "error": err }
                     }
                 },
-                "create": function (...query) {
-                    return{error:"operation not supported"};
+                "create": function (query) {
+                    let parsedQuery = /^create\s+table\s+(.*?)\s+\(\s*(.*?)\s*\)$/i.exec(query);
+                    if (parsedQuery === null) {
+                        return { "error": "Query malformed" };
+                    }
+                    let extractedColumns = IndexSQLParser.utils.extractColumnsCreate(parsedQuery[2]);
+                    if (extractedColumns.error) {
+                        return extractedColumns;
+                    }
+                    return db.tables.createTable(parsedQuery[1], extractedColumns);
                 },
-                "show": function (tables, ...query) {
-                    if(tables.toLowerCase()==="tables"&&query.length===0){
-                        return {"result":db.tables.getTables()}
-                    }else{
-                        return {"error":"Query malformed"};
+                "drop": function (query) {
+                    let parsedQuery = /^drop\s+table\s+(.*?)\s*$/i.exec(query);
+                    if (parsedQuery === null) {
+                        return { "error": "Query malformed" };
+                    }
+                    return db.tables.deleteTable(parsedQuery[1].trim());
+                },
+                "show": function (query) {
+                    if (query.toLowerCase() === "show tables") {
+                        return db.tables.getTables()
+                    } else {
+                        return { "error": "Query malformed" };
+                    }
+                },
+                "start": function (query) {
+                    if (query.toLowerCase() === "start transaction") {
+                        return db.utils.startTransaction();
+                    } else {
+                        return { "error": "Query malformed" };
+                    }
+                },
+                "end": function (query) {
+                    if (query.toLowerCase() === "end transaction") {
+                        return db.utils.endTransaction();
+                    } else {
+                        return { "error": "Query malformed" };
                     }
                 }
             },
             "utils": {
-                "spitter": function (query, separators, first="") {
-                    function checkSeparator(separator,value, index){
-                        function checkSingleSeparator(separator){
-                            if(separator.includes(" ")){
-                                if(separator.split(" ")[0]===element.toLowerCase()){
-                                    let multipleSeparators=separator.split(" ");
-                                    let fits=true;
+                "spitter": function (query, separators, first = "") {
+                    function checkSeparator(separator, value, index) {
+                        function checkSingleSeparator(separator) {
+                            if (separator.includes(" ")) {
+                                if (separator.split(" ")[0] === element.toLowerCase()) {
+                                    let multipleSeparators = separator.split(" ");
+                                    let fits = true;
                                     for (let index2 = 1; index2 < multipleSeparators.length; index2++) {
                                         const element = multipleSeparators[index2];
-                                        const element2 = query[index+index2]
-                                        if(element!==element2.toLowerCase()){
-                                            fits=false;
+                                        const element2 = query[index + index2]
+                                        if (element !== element2.toLowerCase()) {
+                                            fits = false;
                                             break;
                                         }
                                     }
-                                    if(fits){
-                                        return {separator:separator,newIndex: index+multipleSeparators.length}
+                                    if (fits) {
+                                        return { separator: separator, newIndex: index + multipleSeparators.length }
                                     }
-                                }    
-                            }else{
-                                if(separator===value.toLowerCase()){
-                                    return {separator:separator};
+                                }
+                            } else {
+                                if (separator === value.toLowerCase()) {
+                                    return { separator: separator };
                                 }
                             }
                             return false;
                         }
-                        if(Array.isArray(separator)){
+                        if (Array.isArray(separator)) {
                             for (let index2 = 0; index2 < separator.length; index2++) {
                                 const newSeparator = separator[index2];
-                                let check=checkSingleSeparator(newSeparator);
-                                if(check){
+                                let check = checkSingleSeparator(newSeparator);
+                                if (check) {
                                     return check;
                                 }
                             }
-                            if(separators[1]){
-                                let nextSeparator=checkSeparator(separators[1],value,index);
-                                if(nextSeparator){
-                                    nextSeparator.trim=true;
+                            if (separators[1]) {
+                                let nextSeparator = checkSeparator(separators[1], value, index);
+                                if (nextSeparator) {
+                                    nextSeparator.trim = true;
                                     return nextSeparator;
                                 }
                             }
-                        }else{
-                            let nextSeparator=checkSeparator(separator,value,index);
-                            if(nextSeparator){
-                                nextSeparator.trim=true;
+                        } else {
+                            let nextSeparator = checkSeparator(separator, value, index);
+                            if (nextSeparator) {
+                                nextSeparator.trim = true;
                                 return nextSeparator;
-                            }else{
+                            } else {
                                 return false;
                             }
                         }
                     }
                     let result = {};
-                    result[first]=false;
+                    result[first] = false;
                     let current = first;
                     separators.forEach(element => {
-                        if(Array.isArray(element)){
-                            element.forEach((element)=>{
+                        if (Array.isArray(element)) {
+                            element.forEach((element) => {
                                 result[element] = false;
                             })
-                        }else{
+                        } else {
                             result[element] = false;
                         }
                     });
                     for (let index = 0; index < query.length; index++) {
                         const element = query[index];
-                        let separator=checkSeparator(separators[0],element,index);
-                        if(separator){
+                        let separator = checkSeparator(separators[0], element, index);
+                        if (separator) {
                             current = separator.separator;
-                            result[current]=true;
-                            if(separator.trim){
+                            result[current] = true;
+                            if (separator.trim) {
                                 separators = separators.slice(1);
                             }
-                            if(separator.newIndex){
-                                index=newIndex;
+                            if (separator.newIndex) {
+                                index = newIndex;
                             }
-                        }else{
-                            if(result[current]===true){
-                                result[current]=[];
+                        } else {
+                            if (result[current] === true) {
+                                result[current] = [];
                             }
                             result[current].push(element);
                         }
@@ -587,46 +740,46 @@ function IndexSQL(dbName, userOptions) {
                     })
                     return splittedQuery;
                 },
-                "getTable":function (table){
-                    table=data.t[spittedQuery.from[0]];
-                    if(!table){
-                        return { "error": "Table not found"};
+                "getTable": function (table) {
+                    table = data.t[spittedQuery.from[0]];
+                    if (!table) {
+                        return { "error": "Table not found" };
                     }
                     return table;
                 },
-                "getColumns":function(table,columns){
-                    let allColumns=[];
-                    let buffer=[];
-                    columns.forEach((element)=>{
-                        if(element===","){
+                "getColumns": function (table, columns) {
+                    let allColumns = [];
+                    let buffer = [];
+                    columns.forEach((element) => {
+                        if (element === ",") {
                             allColumns.push(buffer);
-                            buffer=[];
-                        }else{
+                            buffer = [];
+                        } else {
                             buffer.push(element)
                         }
                     })
                     allColumns.push(buffer);
-                    return this.getColumnData(table,column);
+                    return this.getColumnData(table, column);
                 },
-                "getColumnData":function(table, column){
-                    let result=[];
+                "getColumnData": function (table, column) {
+                    let result = [];
                     for (let index = 0; index < allColumns.length; index++) {
                         const column = allColumns[index];
-                        switch(column[0].toLowerCase()){
+                        switch (column[0].toLowerCase()) {
                             case "min":
-                                result.push({min:column[2]})
+                                result.push({ min: column[2] })
                                 break;
                             case "max":
-                                result.push({max:column[2]})
+                                result.push({ max: column[2] })
                                 break;
                             case "count":
-                                result.push({count:column[2]})
+                                result.push({ count: column[2] })
                                 break;
                             case "avg":
-                                result.push({avg:column[2]})
+                                result.push({ avg: column[2] })
                                 break;
                             case "sum":
-                                result.push({sum:column[2]})
+                                result.push({ sum: column[2] })
                                 break;
                             case "*":
                                 break;
@@ -635,11 +788,98 @@ function IndexSQL(dbName, userOptions) {
                         }
                     }
                     return result;
-                       
+
+                },
+                "extractColumnsCreate": function (parameters) {
+                    let result = { keys: { primary: [], foreign: [] }, cols: {} };
+                    let parametersList = parameters.split(",");
+                    parametersList = parametersList.map(element => element.trim());
+                    let error;
+                    parametersList.some((parameterString) => {
+                        if (/\s+KEY\s+/i.test(parameterString)) {
+                            let primaryParameters = /^PRIMARY\s+KEY\s+\((.*)\)$/i.exec(parameterString);
+                            if (primaryParameters !== null) {
+                                primaryParameters.map(element => element.trim());
+                                if (primaryParameters[1].includes(",")) {
+                                    primaryParameters[1].split(",").forEach(parameter => result.keys.primary.push(parameter.trim()))
+                                } else {
+                                    result.keys.primary.push(primaryParameters[1]);
+                                }
+                            } else {
+                                let foreingParameters = /^FOREIGN\s+KEY\s+\((.*?)\)\s*REFERENCES\s+(.*?)\((.*?)\)$/i.exec(parameterString);
+                                if (foreingParameters !== null) {
+                                    foreingParameters.map(element => element.trim());
+                                    result.keys.foreign.push({ col: foreingParameters[1], refTable: foreingParameters[2], refCol: foreingParameters[3] })
+                                } else {
+                                    error = "Malformed query";
+                                    return true;
+                                }
+                            }
+                        } else {
+                            let parametersBreak = /^(.*?)\s+(.*?\(.*?\)|.*?)(?:\s+(.+?))?$/i.exec(parameterString);
+                            if (parametersBreak !== null) {
+                                let column = {
+                                    constraints: []
+                                }
+                                let datatype = this.extractDatatype(parametersBreak[2]);
+                                if (datatype.error) {
+                                    error = datatype.error;
+                                    return true;
+                                }
+                                column.type = datatype;
+                                //TODO:CONSTRAINTS
+                                result.cols[parametersBreak[1]] = column;
+                            } else {
+                                error = "Malformed query"
+                                return true;
+                            }
+
+                        }
+                    })
+                    if (error) {
+                        return { error }
+                    }
+                    return result;
+                },
+                "extractDatatype": function (datatype) {
+                    datatype = datatype.toUpperCase();
+                    if (datatype.includes("CHAR")) {
+                        return "STRING";
+                    }
+                    if (datatype.includes("BINARY")) {
+                        return "STRING";
+                    }
+                    if (datatype.includes("TEXT")) {
+                        return "STRING";
+                    }
+                    if (datatype.includes("BLOB")) {
+                        return "STRING";
+                    }
+                    //NUMBER
+                    if (datatype.includes("BIT")) {
+                        return "NUMBER";
+                    }
+                    if (datatype.includes("INT")) {
+                        return "NUMBER";
+                    }
+                    if (datatype.includes("FLOAT")) {
+                        return "NUMBER";
+                    }
+                    if (datatype.includes("DOUBLE")) {
+                        return "NUMBER";
+                    }
+                    if (datatype.includes("DEC")) {
+                        return "NUMBER";
+                    }
+                    //BOOLEAN
+                    if (datatype.includes("BOOL")) {
+                        return "BOOLEAN";
+                    }
+                    return datatype;
                 }
             }
         };
-        
+
         function messageHandler(e) {
             if (e.data.drop) {
                 dbUtils.drop();
@@ -654,17 +894,23 @@ function IndexSQL(dbName, userOptions) {
                 dbUtils.save();
                 return;
             }
+            if(e.data.updateOptions){
+                let result=db.updateOptions(e.data.updateOptions);
+                result.id=e.data.id;
+                postMessage(result)
+                return;
+            }
             IndexSQLParser.parse(e.data.querys, e.data.id);
         }
         //This only works if we are on no worker mode;
         'start no worker'
         let returnData = {
-            onmessage, postMessage: function () {
-                messageHandler.apply(this, arguments);
+            onmessage, postMessage: function (e, ...args) {
+                messageHandler({ data: e }, ...args);
             }
         }
-        function postMessage() {
-            returnData.onmessage.apply(this, arguments);
+        function postMessage(e, ...args) {
+            returnData.onmessage({ data: e }, ...args);
         }
         return returnData;
     }
@@ -675,13 +921,24 @@ function IndexSQL(dbName, userOptions) {
     if (typeof (Worker) !== "undefined" && options.worker) {
         db.worker = new Worker(URL.createObjectURL(new Blob([`( ${db.server.toString().split("'start no worker'")[0]}
         onmessage = messageHandler;
-        })("${dbName}", "${db.tech}",${JSON.stringify(options)})`], { type: 'text/javascript' })));
+        })("${dbName}", "${db.tech}",${JSON.stringify(options,(data,val)=>typeof val === "function"?val.toString() : val)})`], { type: 'text/javascript' })));
     } else {
         db.worker = db.server(dbName, db.tech, options);
     }
     db.worker.onmessage = function (e) {
-        db.callbacks[e.data.id](e.data.response);
-        db.callbacks[e.data.id] = undefined;
+        if(e.data.badPassword){
+            if(options.worker){
+                db.worker.terminate()
+            }
+            db.worker={postMessage:(e)=>{return {error:"Incorrect password"}}}
+        }else{
+            if(e.data.backup){
+                options.backup(e.data.backup)
+            }else{
+                db.callbacks[e.data.id](e.data.response);
+                db.callbacks[e.data.id] = undefined;
+            }
+        }
     };
     /**
      * The headers of a result table
@@ -718,9 +975,9 @@ function IndexSQL(dbName, userOptions) {
      * @param {dbQueryCallback} callback - Callback with the response after the queries are executed.
      */
     function execute(query, callback) {
-        db.worker.postMessage({ querys: query, id: db.id });
-        db.callbacks[db.id] = callback;
         db.id++;
+        db.callbacks[db.id] = callback;
+        db.worker.postMessage({ querys: query, id: db.id });
     }
     /**
      * Callback for backup execution.
@@ -734,9 +991,9 @@ function IndexSQL(dbName, userOptions) {
      * @param {dbBackupCallback} callback - Callback with the backup.
      */
     function manualBackup(callback) {
-        db.worker.postMessage({ manualBackup: true, id: db.id });
         db.callbacks[db.id] = callback;
         db.id++;
+        db.worker.postMessage({ manualBackup: true, id: db.id });
     }
     /**
      * It restores an old backup of the database.
@@ -745,41 +1002,42 @@ function IndexSQL(dbName, userOptions) {
      * @param {String} backup - The backup of the whole database.
      */
     function manualRestore(backup, callback) {
-        db.worker.postMessage({ restore: backup, id: db.id });
-        db.callbacks[db.id] = callback;
         db.id++;
+        db.callbacks[db.id] = callback;
+        db.worker.postMessage({ restore: backup, id: db.id });
     }
     function startBackups(backupOptions, callback) {
-        db.worker.postMessage({ backup: backupOptions, id: db.id });
+        db.id++;
         db.callbacks[db.id] = callback;
-        db.id++;
+        options.backup=backupOptions;
+        db.worker.postMessage({ updateOptions: {backupOptions}, id: db.id });
     }
-    function encrypt(password,callback){
-        db.worker.postMessage({encrypt:password});
-        db.callbacks[db.id]=callback;
+    function encrypt(password, callback) {
         db.id++;
+        db.callbacks[db.id] = callback;
+        db.worker.postMessage({ updateOptions: {encrypt:password}, id: db.id });
     }
-    let result={ execute, manualBackup, manualRestore, startBackups, encrypt };
-    
-    let promise={};
+    let result = { execute, manualBackup, manualRestore, startBackups, encrypt };
+
+    let promise = {};
     //PROMISE CALLS CONSTRUCTOR
     for (const functionData in result) {
         if (result.hasOwnProperty(functionData)) {
             const functionExecutable = result[functionData];
-            promise[functionData]=function(...args){
-                return new Promise((resolve,reject)=>{
-                    try{
-                        args.push((result)=>{
+            promise[functionData] = function (...args) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        args.push((result) => {
                             resolve(result);
                         })
                         functionExecutable(...args);
-                    }catch(err){
+                    } catch (err) {
                         reject(err);
                     }
                 })
             }
         }
     }
-    result.promise=promise;
+    result.promise = promise;
     return result;
 }
