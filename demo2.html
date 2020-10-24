@@ -96,7 +96,7 @@ SELECT * FROM Orders;
 DELETE FROM Persons WHERE IsMale=false;
 SELECT * FROM Persons;
 END TRANSACTION;`);
-        var indexSQL=new IndexSQL("demo",{worker:false,encrypt:"hello",backup:(data)=>{console.log(data)}});
+        var indexSQL=new IndexSQL("demo",{worker:false,encrypt:"hello",backup:(data)=>{console.log(data)},modules:["src/modules/sql.module.js"]});
         async function backup(){
             document.getElementById("result").innerHTML=JSON.stringify(await indexSQL.promise.manualBackup());
         }
@@ -138,13 +138,12 @@ END TRANSACTION;`);
         }
         function submitCode(){
             let time=new Date().getTime();
-            indexSQL.execute(editor.getValue(),function(time){
-                return function(result){
+            indexSQL.execute("sql",function(time){
+                return function(err,result){
                     drawResults(result,time);
-                    indexSQL.execute("show Tables;",function(result){
-                        drawTables(result)});
-                    }
-                }(time));
+                    indexSQL.execute("sql",function(err,result){drawTables(result)},"Show tables;");
+                }
+            }(time),editor.getValue());
         }
         function drawTables(results){
             let tables=results[0].result;
@@ -165,13 +164,14 @@ END TRANSACTION;`);
                     element.classList.remove("active");
                 }
             }
-            indexSQL.execute("SELECT * FROM "+table+";",function(tableName){
+            indexSQL.execute("sql",function(err,tableName){
                 return function(result){
                     let table=result[0].result;
                     let tablesString="<h2>Showing table "+tableName+"</h2>"+tableDrawer(table);
                     document.getElementById("table-inspector").innerHTML=tablesString;
                 }
-            }(table));
+            }(table),
+            "SELECT * FROM "+table+";");
         }
         function tableDrawer(table){
             let tableString="<table><tr>";
@@ -192,6 +192,6 @@ END TRANSACTION;`);
             tableString=tableString+"</table>";
             return tableString;
         }
-        indexSQL.execute("Show tables;",function(result){drawTables(result)});
+        indexSQL.execute("sql",function(err,result){drawTables(result)},"Show tables;");
     </script>
 </body>

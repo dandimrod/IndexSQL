@@ -34,7 +34,7 @@ class IndexSQL {
         };
         requestDB.onupgradeneeded = function (event) {
             db = event.target.result;
-            let store = db.createObjectStore("databases", { keypath: "name" });
+            db.createObjectStore("databases", { keypath: "name" });
         };
         db.server = function () {
             let data = {};
