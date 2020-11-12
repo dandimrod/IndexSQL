@@ -23,23 +23,68 @@
             return result;
         },
         "commands": {
-            "select": function (...query) {
-                return { error: "operation not supported" };
-                try {
-                    let distint;
-                    if (query[0].toLowerCase === "distint") {
-                        distint = true;
-                        query = query.slice(1);
-                    }
-                    let spittedQuery = IndexSQLParser.utils.spitter(query, ["from", ["where", "order by"]], "columns");
-                    if (spittedQuery.from.length !== 1 || spittedQuery.columns.length === 0) {
-                        return { "error": "Query malformed" };
-                    }
-                    let table = IndexSQLParser.utils.getTable(spittedQuery.from[0]);
-                    let columns = IndexSQLParser.utils.getTable(table, spittedQuery.columns);
-                } catch (err) {
-                    return { "error": err }
+            "select": function (query) {
+                //debugger;
+                let parsedQuery= /^select\s+(distint\s+)?(.*)\s+?from\s+(.*)$/gmi.exec(query)
+                if (parsedQuery === null) {
+                    return { "error": "Query malformed" };
                 }
+                let distint=!!parsedQuery[1];
+                let columnList=parsedQuery[2].trim()==="*"?true:parsedQuery[2].split(",").map(this.utils.columnParserSelect);
+                let params=this.utils.splitter(parsedQuery[3], ["where", "order by", "join", "limit", "offset"], "from");
+                if(params["from"]){
+                    params["from"]=this.utils.trimString(params["from"]);
+                }else{
+                    return {error:"No table detected"}
+                }
+                if(params["where"]){
+                    params["where"]=this.utils.where(params["where"].trim());
+                }
+                if(params["order by"]){
+                    params["order by"]=params["order by"].split(",").map((column)=>{
+                        column=column.trim();
+                        if(column.match(/desc$/i)){
+                            return {desc:true,column:this.utils.columnParserSelect(column.slice(0,-4).trim())}
+                        }
+                        if(column.match(/asc$/i)){
+                            return {desc:false,column:this.utils.columnParserSelect(column.slice(0,-3).trim())}
+                        }
+                        return {desc:true,column:this.utils.columnParserSelect(column)}
+                    });
+                }
+                if(params["join"]){
+                    let stringSearcher='([a-zA-Z0-9_]+|"[^"]+"|\'[^\']+\'|`[^`]+`)';
+                    let formatedJoin=new RegExp(`^${stringSearcher}\\s+on\\s+${stringSearcher}.${stringSearcher}\\s*=\\s*${stringSearcher}.${stringSearcher}$`,"i").exec(params["join"].trim());
+                    if(formatedJoin===null){
+                        return {error: "Malformed join"}
+                    }
+                    let foreingTable=this.utils.trimString(formatedJoin[1]);
+                    let foreingColumn;
+                    let column;
+                    if(foreingTable===this.utils.trimString(formatedJoin[2])){
+                        foreingColumn=this.utils.trimString(formatedJoin[3]);
+                        column=this.utils.trimString(formatedJoin[5]);
+                    }else{
+                        if(foreingTable===this.utils.trimString(formatedJoin[4])){
+                            foreingColumn=this.utils.trimString(formatedJoin[5]);
+                            column=this.utils.trimString(formatedJoin[3]);
+                        }else{
+                            return {error: "Malformed join"}
+                        }
+                    }
+                    params["join"]=[{foreingTable,foreingColumn,column}];
+                }
+                if(params["limit"]){
+                    params["limit"]=new Number(params["limit"].trim());
+                }
+                if(params["offset"]){
+                    params["offset"]=new Number(params["offset"].trim());
+                }
+                let result=db.data.getData(params["from"],params["join"],params["where"]);
+                if(result.error){
+                    return result;
+                }
+                return result;
             },
             "insert": function (query){
                 return { "error": "Query malformed" };
@@ -57,7 +102,7 @@
                 
             },
             "create": function (query) {
-                let parsedQuery = /^create\s+table\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+')\s+\(\s*(.*?)\s*\)$/i.exec(query);
+                let parsedQuery = /^create\s+table\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`)\s+\(\s*(.*?)\s*\)$/i.exec(query);
                 if (parsedQuery === null) {
                     return { "error": "Query malformed" };
                 }
@@ -65,21 +110,27 @@
                 if (extractedColumns.error) {
                     return extractedColumns;
                 }
-                return db.tables.createTable(this.utils.getTable(parsedQuery[1]), extractedColumns);
+                return db.tables.createTable(this.utils.trimString(parsedQuery[1]), extractedColumns);
             },
             "drop": function (query) {
-                let parsedQuery = /^drop\s+table\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+')\s*$/i.exec(query);
+                let parsedQuery = /^drop\s+table\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`)\s*$/i.exec(query);
                 if (parsedQuery === null) {
                     return { "error": "Query malformed" };
                 }
-                return db.tables.deleteTable(this.utils.getTable(parsedQuery[1]));
+                return db.tables.deleteTable(this.utils.trimString(parsedQuery[1]));
             },
             "show": function (query) {
-                let parsedQuery = /show\s+tables/i.exec(query);
+                let parsedQuery = /^show\s+(?:(tables)|columns\s+from\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`))$/i.exec(query);
                 if (parsedQuery === null) {
                     return { "error": "Query malformed" };
                 }
-                return db.tables.getTables()
+                if(parsedQuery[1]){
+                    return db.tables.getTables();
+                }
+                if(parsedQuery[2]){
+                    return db.tables.getTable(this.utils.trimString(parsedQuery[2]));
+                }
+                return { "error": "Query malformed" };
             },
             "start": function (query) {
                 let parsedQuery = /start\s+transaction/i.exec(query);
@@ -96,89 +147,54 @@
                 return db.utils.endTransaction();
             },
             "utils": {
-                "spitter": function (query, separators, first = "") {
-                    function checkSeparator(separator, value, index) {
-                        function checkSingleSeparator(separator) {
-                            if (separator.includes(" ")) {
-                                if (separator.split(" ")[0] === element.toLowerCase()) {
-                                    let multipleSeparators = separator.split(" ");
-                                    let fits = true;
-                                    for (let index2 = 1; index2 < multipleSeparators.length; index2++) {
-                                        const element = multipleSeparators[index2];
-                                        const element2 = query[index + index2]
-                                        if (element !== element2.toLowerCase()) {
-                                            fits = false;
-                                            break;
-                                        }
-                                    }
-                                    if (fits) {
-                                        return { separator: separator, newIndex: index + multipleSeparators.length }
-                                    }
-                                }
-                            } else {
-                                if (separator === value.toLowerCase()) {
-                                    return { separator: separator };
-                                }
-                            }
-                            return false;
-                        }
-                        if (Array.isArray(separator)) {
-                            for (let index2 = 0; index2 < separator.length; index2++) {
-                                const newSeparator = separator[index2];
-                                let check = checkSingleSeparator(newSeparator);
-                                if (check) {
-                                    return check;
-                                }
-                            }
-                            if (separators[1]) {
-                                let nextSeparator = checkSeparator(separators[1], value, index);
-                                if (nextSeparator) {
-                                    nextSeparator.trim = true;
-                                    return nextSeparator;
-                                }
-                            }
-                        } else {
-                            let nextSeparator = checkSeparator(separator, value, index);
-                            if (nextSeparator) {
-                                nextSeparator.trim = true;
-                                return nextSeparator;
-                            } else {
-                                return false;
-                            }
-                        }
-                    }
+                "splitter": function (query, separators, first = "") {
                     let result = {};
                     result[first] = false;
                     let current = first;
-                    separators.forEach(element => {
-                        if (Array.isArray(element)) {
-                            element.forEach((element) => {
-                                result[element] = false;
-                            })
-                        } else {
-                            result[element] = false;
+                    let start=[]
+                    separators.forEach((separator)=>{
+                        result[separator]=false;
+                        start.push([separator,query.search(new RegExp(separator,"i"))]);
+                    })
+                    start=start.sort((a,b)=>{return a[1]-b[1]});
+                    start=start.filter(separator=>separator[1]!==-1);
+                    start.forEach((separator,index)=>{
+                        if(index==0){
+                            if(separator[1]!==0){
+                                result[first]=query.substring(0,separator[1]);
+                            }
+                        }else{
+                            result[start[index-1][0]]=query.substring(start[index-1][0].length+start[index-1][1],separator[1])
                         }
-                    });
-                    for (let index = 0; index < query.length; index++) {
-                        const element = query[index];
-                        let separator = checkSeparator(separators[0], element, index);
-                        if (separator) {
-                            current = separator.separator;
-                            result[current] = true;
-                            if (separator.trim) {
-                                separators = separators.slice(1);
-                            }
-                            if (separator.newIndex) {
-                                index = newIndex;
-                            }
-                        } else {
-                            if (result[current] === true) {
-                                result[current] = [];
-                            }
-                            result[current].push(element);
-                        }
+                        
+                    })
+                    if(start.length==0){
+                        result[first]=query;
+                    }else{
+                        result[start[start.length-1][0]]=query.substring(start[start.length-1][0].length+start[start.length-1][1],query.length-1);
                     }
                     return result;
+                },
+                "trimString":function (element) {
+                    element=element.trim();
+                    if (element.startsWith('"') || element.startsWith("'") || element.startsWith("`")) {
+                        return element.slice(1, -1);
+                    } else {
+                        return element;
+                    }
+                },
+                "columnParserSelect":(column)=>{
+                    let parsedColumn=/^((.*)\(\s*([^"'`\s]+|"[^"]+"|'[^']+'|`[^`]+`)\s*\))|(([^"'`\s.]+|"[^"]+"|'[^']+'|`[^`]+`)\.([^"'`\s.]+|"[^"]+"|'[^']+'|`[^`]+`))|([^"'`\s.]+|"[^"]+"|'[^']+'|`[^`]+`)$/i.exec(column.trim());
+                    if(parsedColumn[1]){
+                        return {type:"function",exec:parsedColumn[2],column:parsedColumn[3]};
+                    }
+                    if(parsedColumn[4]){
+                        return {type:"compound",table:parsedColumn[5],column:parsedColumn[6]};
+                    }
+                    if(parsedColumn[7]){
+                        return {type:"column",column:parsedColumn[7]};
+                    }
+                    return {};
                 },
                 "generateQueryArray": function (query) {
                     let splittedQuery = query.match(/[a-zA-Z0-9_]+|"[^"]+"|'[^']+'|[^a-zA-Z0-9_"' ]{1}/gm);
@@ -190,56 +206,6 @@
                         }
                     })
                     return splittedQuery;
-                },
-                "getColumns": function (table, columns) {
-                    let allColumns = [];
-                    let buffer = [];
-                    columns.forEach((element) => {
-                        if (element === ",") {
-                            allColumns.push(buffer);
-                            buffer = [];
-                        } else {
-                            buffer.push(element)
-                        }
-                    })
-                    allColumns.push(buffer);
-                    return this.getColumnData(table, column);
-                },
-                "getColumnData": function (table, column) {
-                    let result = [];
-                    for (let index = 0; index < allColumns.length; index++) {
-                        const column = allColumns[index];
-                        switch (column[0].toLowerCase()) {
-                            case "min":
-                                result.push({ min: column[2] })
-                                break;
-                            case "max":
-                                result.push({ max: column[2] })
-                                break;
-                            case "count":
-                                result.push({ count: column[2] })
-                                break;
-                            case "avg":
-                                result.push({ avg: column[2] })
-                                break;
-                            case "sum":
-                                result.push({ sum: column[2] })
-                                break;
-                            case "*":
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                    return result;
-    
-                },
-                "getTable": function (table) {
-                    table=table.trim();
-                    if(table.startsWith('"')||table.startsWith("'")){
-                        table=table.slice(1, -1);
-                    }
-                    return table;
                 },
                 "extractColumnsCreate": function (parameters) {
                     let result = { keys: { primary: [], foreign: [] }, cols: {} };
@@ -327,6 +293,9 @@
                         return "BOOLEAN";
                     }
                     return datatype;
+                },
+                "where":function(where){
+                    return "";
                 }
             }
         },

@@ -34,7 +34,7 @@ function IndexSQL(dbName, userOptions) {
         fallback: true,
         backup: undefined,
         cache: undefined,
-        modules:[],
+        modules: [],
     }
     let options = { ...defaultOptions, ...userOptions };
     let db = {};
@@ -69,6 +69,7 @@ function IndexSQL(dbName, userOptions) {
     }
     db.server = function (dbName, tech, options, baseUri) {
         debugger;
+        console.log(JSON.stringify(Object.keys(globalThis)))
         let dbTechs = {
             "indexdb": {
                 init: function () {
@@ -350,10 +351,10 @@ function IndexSQL(dbName, userOptions) {
                         return await encStr(data, secret);
                     }
                     decompress = async function (data) {
-                        try{
+                        try {
                             return await decStr(data, secret);
-                        }catch(err){
-                            postMessage({badPassword:true})
+                        } catch (err) {
+                            postMessage({ badPassword: true })
                             throw "INDEXSQL ERROR: Bad Password"
                         }
                     }
@@ -370,9 +371,9 @@ function IndexSQL(dbName, userOptions) {
             }
             function commit() {
                 if (!transaction) {
-                    if(options.backup){
-                        returnDb.exportDb().then((data)=>{
-                            postMessage({backup:data})
+                    if (options.backup) {
+                        returnDb.exportDb().then((data) => {
+                            postMessage({ backup: data })
                         })
                     }
                     dbUtils.save();
@@ -388,6 +389,69 @@ function IndexSQL(dbName, userOptions) {
                     errorOnTransaction = true;
                 }
             }
+            function checkConstraints(columnConstraints, data) {
+                for (const column in data) {
+                    if (data.hasOwnProperty(column)) {
+                        const value = data[column];
+                        if (!columnConstraints[column]) {
+                            return { error: "Table " + name + " does not have column " + column };
+                        }
+                        if (columnConstraints[column].c) {
+                            for (let index = 0; index < columnConstraints[column].c.length; index++) {
+                                const constraint = columnConstraints[column].c[index];
+                                let constraintFunction = secureFunction(constraint, "column", "data");
+                                try {
+                                    if (!constraintFunction(column, value)) {
+                                        return { error: "The value " + value + " does not comply with the constraint " + constraint + " of the column " + column }
+                                    }
+                                } catch (e) {
+                                    return { error: "Unespecified error checking the constraint " + constraint + " with the value " + value + " of the column " + column }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            function filterData(registry, filter) {
+                if (!filter) {
+                    return registry;
+                }
+                try {
+                    let filterFunction = secureFunction(code, "data");
+                    let passed = {};
+                    for (const key in registry) {
+                        if (registy.hasOwnProperty(key)) {
+                            const data = JSON.parse(JSON.stringify(registy[key]));
+                            let result = false;
+                            try {
+                                result = filterFunction(data);
+                            } catch (error) {
+
+                            }
+                            if (result) {
+                                passed[key] = registry[key];
+                            }
+                        }
+                    }
+                    return { data: passed }
+                } catch (e) {
+                    return { error: "Malformed filter" }
+                }
+
+            }
+            function treefy(tableName, treeData) {
+                if (!treeData || treeData.length === 0) {
+                    return db.t[tableName].v;
+                }
+            }
+            function secureFunction(code, ...variables) {
+                //https://stackoverflow.com/questions/47444376/sanitizing-eval-to-prevent-it-from-changing-any-values
+                let globals = [...variables, "globalThis", ...Object.keys(globalThis), code];
+                let securized = Function.apply(null, globals);
+                return function (...variables) {
+                    return securized.apply({}, ...variables);
+                }
+            }
             let db;
             let transaction;
             let errorOnTransaction = false;
@@ -398,8 +462,8 @@ function IndexSQL(dbName, userOptions) {
                     t: {},
                     //metadata
                     m: {
-                        //cachedCalls
-                        c: []
+                        //Timestamp
+                        ts: new Date()
                     }
                 }
                 dbUtils.loaded = true;
@@ -409,19 +473,27 @@ function IndexSQL(dbName, userOptions) {
                     dbUtils.loaded = true;
                 })
             }
-            let returnDb= {
+            let returnDb = {
                 exportDb: async function () {
                     return await baker.compress(JSON.stringify(db));
                 },
-                updateOptions:function(newOptions){
-                    options={options,...newOptions}
+                updateOptions: function (newOptions) {
+                    options = { options, ...newOptions }
                     baker = new Baker(options.encrypt)
                     commit()
-                    return {message:"Options updated"}
+                    return { message: "Options updated" }
                 },
                 tables: {
-                    getTable: function (name){
-                        
+                    getTable: function (name) {
+                        if (checkTransaction()) {
+                            return checkTransaction();
+                        }
+                        if (!db.t[name]) {
+                            endedOnError();
+                            return { error: "Table " + name + " does not exist" };
+                        }
+                        let table = db.t[name];
+                        return { columns: table.c, parents: table.p, descendants: table.d, keys: table.k, metadata: table.m }
                     },
                     getTables: function () {
                         if (checkTransaction()) {
@@ -447,7 +519,9 @@ function IndexSQL(dbName, userOptions) {
                             //decendants
                             d: [],
                             //key
-                            k: []
+                            k: [],
+                            //index
+                            i: 0
                         }
                         if (columns.keys.primary.length !== 0) {
                             let error = false;
@@ -476,19 +550,19 @@ function IndexSQL(dbName, userOptions) {
                         if (checkTransaction()) {
                             return checkTransaction();
                         }
-                        if(!db.t[name]){
-                            return {warn:"Table "+name+" does not exist"};
+                        if (!db.t[name]) {
+                            return { warn: "Table " + name + " does not exist" };
                         }
                         delete db.t[name];
                         for (const tableName in db.t) {
                             if (db.t.hasOwnProperty(tableName)) {
                                 const table = db.t[tableName];
-                                table.p=table.p.filter((element)=>element.refTable!==name);
-                                table.d=table.d.filter((element)=>element.refTable!==name);
+                                table.p = table.p.filter((element) => element.refTable !== name);
+                                table.d = table.d.filter((element) => element.refTable !== name);
                             }
                         }
                         commit()
-                        return {message:"Table "+name+" was dropped succesfully"};
+                        return { message: "Table " + name + " was dropped succesfully" };
                     },
                     alterTable: function () {
                         if (checkTransaction()) {
@@ -497,25 +571,109 @@ function IndexSQL(dbName, userOptions) {
                     }
                 },
                 data: {
-                    getData: function (table) {
+                    getData: function (table, filter, tree) {
                         if (checkTransaction()) {
                             return checkTransaction();
                         }
+                        if (!db.t[table]) {
+                            endedOnError();
+                            return { error: "Table " + name + " does not exist" };
+                        }
+                        let values = treefy(table, tree)
+                        if (values.error) {
+                            endedOnError();
+                            return values;
+                        }
+                        let returned = filterData(values, filter);
+                        if (returned.error) {
+                            endedOnError();
+                            return returned;
+                        }
+                        return { result: returned }
                     },
-                    createData: function (table) {
+                    createData: function (table, data) {
                         if (checkTransaction()) {
                             return checkTransaction();
                         }
+                        if (!db.t[table]) {
+                            endedOnError();
+                            return { error: "Table " + name + " does not exist" };
+                        }
+                        table = db.t[table];
+                        // Handling of default values
+                        Object.keys(table.c).forEach((column) => {
+                            if (data[column] === undefined && table.c.d) {
+                                data[column] = table.c.d;
+                            }
+                        })
+                        let checkedConstraints = checkConstraints(table.c, data);
+                        if (checkedConstraints.error) {
+                            endedOnError();
+                            return checkedConstraints;
+                        }
+                        table.v[table.i] = data;
+                        table.i++;
+                        commit();
+                        return { message: "Data inserted" };
+
                     },
-                    deleteData: function (table) {
+                    deleteData: function (table, filter, tree) {
                         if (checkTransaction()) {
                             return checkTransaction();
                         }
+                        if (!db.t[table]) {
+                            endedOnError();
+                            return { error: "Table " + name + " does not exist" };
+                        }
+                        table = db.t[table];
+                        let values = treefy(table, tree)
+                        if (values.error) {
+                            endedOnError();
+                            return values;
+                        }
+                        let toBeDeleted = filterData(values, filter);
+                        if (toBeDeleted.error) {
+                            endedOnError();
+                            return toBeDeleted;
+                        }
+                        Object.keys[toBeDeleted].forEach((key) => {
+                            delete table.v[key];
+                        })
+                        commit();
+                        return { message: "Deleted " + Object.keys(toBeDeleted).length + " rows" };
+
                     },
-                    alterData: function (table) {
+                    updateData: function (table, data, filter, tree) {
                         if (checkTransaction()) {
                             return checkTransaction();
                         }
+                        if (!db.t[table]) {
+                            endedOnError();
+                            return { error: "Table " + name + " does not exist" };
+                        }
+                        table = db.t[table];
+                        let values = treefy(table, tree)
+                        if (values.error) {
+                            endedOnError();
+                            return values;
+                        }
+                        let toBeUpdated = filterData(values, filter);
+                        if (toBeUpdated.error) {
+                            endedOnError();
+                            return toBeUpdated;
+                        }
+                        let checkedConstraints = checkConstraints(table.c, data);
+                        if (checkedConstraints.error) {
+                            endedOnError();
+                            return checkedConstraints;
+                        }
+                        Object.keys(toBeUpdated).forEach((key) => {
+                            Object.keys(data).forEach((column) => {
+                                table.v[key] = data[column];
+                            })
+                        })
+                        commit();
+                        return { message: "Updated " + Object.keys(toBeUpdated).length + " rows" };
                     }
                 },
                 utils: {
@@ -545,37 +703,50 @@ function IndexSQL(dbName, userOptions) {
                                 return { message: "Transaction completed" }
                             }
                         }
+                    },
+                    sendError: function(){
+                        endedOnError();
                     }
                 }
             }
             return returnDb;
         }
         let db;
-        let parserModules=function(modules){
-            let result={
-                loaded:false,
+        let parserModules = function (modules) {
+            let result = {
+                loaded: false,
             }
-            let parserModules={};
-            result.modules=parserModules;
-            async function importModules(){
+            let parserModules = {
+                default: function (target, method, ...args) {
+                    if (target !== "tables" || target !== "data" || target !== "utils") {
+                        return { error: "Operation not supported" }
+                    }
+                    if (!db[target][method]) {
+                        return { error: "Operation not supported" }
+                    }
+                    return db[target][method](...args)
+                }
+            };
+            result.modules = parserModules;
+            async function importModules() {
                 for (let index = 0; index < modules.length; index++) {
                     const element = modules[index];
-                    let url=baseUri?new URL( element, baseUri ):element;
-                    let data=await fetch(url);
-                    let script=await data.text();
+                    let url = baseUri ? new URL(element, baseUri) : element;
+                    let data = await fetch(url);
+                    let script = await data.text();
                     eval(script)
                 }
-                result.loaded=true;
+                result.loaded = true;
             }
             importModules();
             return result;
-        }(options.modules);        
-        function masterParser(data){
+        }(options.modules);
+        function masterParser(data) {
             if (dbUtils.loaded && parserModules.loaded) {
-                if(parserModules.modules[data.typeQuery]){
-                    postMessage({ id:data.id, response: parserModules.modules[data.typeQuery](...data.querys) });
-                }else{
-                    postMessage({ id:data.id, error: "Module "+data.typeQuery+" is not imported" });
+                if (parserModules.modules[data.typeQuery]) {
+                    postMessage({ id: data.id, response: parserModules.modules[data.typeQuery](...data.querys) });
+                } else {
+                    postMessage({ id: data.id, error: "Module " + data.typeQuery + " is not imported" });
                 }
             }
             else {
@@ -599,17 +770,17 @@ function IndexSQL(dbName, userOptions) {
                     dbUtils.save();
                     return;
                 }
-                if(e.data.updateOptions){
-                    let result=db.updateOptions(e.data.updateOptions);
-                    result.id=e.data.id;
+                if (e.data.updateOptions) {
+                    let result = db.updateOptions(e.data.updateOptions);
+                    result.id = e.data.id;
                     postMessage(result)
                     return;
                 }
-                if(e.data.typeQuery){
+                if (e.data.typeQuery) {
                     masterParser(e.data)
                 }
             } catch (error) {
-                postMessage({ error:error.message, id:e.data.id });
+                postMessage({ error: error.message, id: e.data.id });
             }
         }
         //This only works if we are on no worker mode;
@@ -631,20 +802,20 @@ function IndexSQL(dbName, userOptions) {
     if (typeof (Worker) !== "undefined" && options.worker) {
         db.worker = new Worker(URL.createObjectURL(new Blob([`( ${db.server.toString().split("'start no worker'")[0]}
         onmessage = messageHandler;
-        })("${dbName}", "${db.tech}",${JSON.stringify(options,(data,val)=>typeof val === "function"?val.toString() : val)},"${document.baseURI}")`], { type: 'text/javascript' })));
+        })("${dbName}", "${db.tech}",${JSON.stringify(options, (data, val) => typeof val === "function" ? val.toString() : val)},"${document.baseURI}")`], { type: 'text/javascript' })));
     } else {
         db.worker = db.server(dbName, db.tech, options);
     }
     db.worker.onmessage = function (e) {
-        if(e.data.badPassword){
-            if(options.worker){
+        if (e.data.badPassword) {
+            if (options.worker) {
                 db.worker.terminate()
             }
-            db.worker={postMessage:(e)=>{return {error:"Incorrect password"}}}
-        }else{
-            if(e.data.backup){
+            db.worker = { postMessage: (e) => { return { error: "Incorrect password" } } }
+        } else {
+            if (e.data.backup) {
                 options.backup(e.data.backup)
-            }else{
+            } else {
                 db.callbacks[e.data.id](e.data.error, e.data.response);
                 db.callbacks[e.data.id] = undefined;
             }
@@ -684,10 +855,10 @@ function IndexSQL(dbName, userOptions) {
      * For additional information about the use of queries visit https://dandimrod.github.io/IndexSQL/docs/#SQL-syntax
      * @param {dbQueryCallback} callback - Callback with the response after the queries are executed.
      */
-    function execute(type,callback,...args) {
+    function execute(type, callback, ...args) {
         db.id++;
         db.callbacks[db.id] = callback;
-        db.worker.postMessage({ typeQuery:type, querys: args, id: db.id });
+        db.worker.postMessage({ typeQuery: type, querys: args, id: db.id });
     }
     /**
      * Callback for backup execution.
@@ -719,13 +890,13 @@ function IndexSQL(dbName, userOptions) {
     function startBackups(backupOptions, callback) {
         db.id++;
         db.callbacks[db.id] = callback;
-        options.backup=backupOptions;
-        db.worker.postMessage({ updateOptions: {backupOptions}, id: db.id });
+        options.backup = backupOptions;
+        db.worker.postMessage({ updateOptions: { backupOptions }, id: db.id });
     }
     function encrypt(password, callback) {
         db.id++;
         db.callbacks[db.id] = callback;
-        db.worker.postMessage({ updateOptions: {encrypt:password}, id: db.id });
+        db.worker.postMessage({ updateOptions: { encrypt: password }, id: db.id });
     }
     let result = { execute, manualBackup, manualRestore, startBackups, encrypt };
 
