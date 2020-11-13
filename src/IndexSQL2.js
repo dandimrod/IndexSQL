@@ -411,17 +411,18 @@ function IndexSQL(dbName, userOptions) {
                         }
                     }
                 }
+                return {};
             }
             function filterData(registry, filter) {
                 if (!filter) {
                     return registry;
                 }
                 try {
-                    let filterFunction = secureFunction(code, "data");
+                    let filterFunction = secureFunction(filter, "data");
                     let passed = {};
                     for (const key in registry) {
-                        if (registy.hasOwnProperty(key)) {
-                            const data = JSON.parse(JSON.stringify(registy[key]));
+                        if (registry.hasOwnProperty(key)) {
+                            const data = JSON.parse(JSON.stringify(registry[key]));
                             let result = false;
                             try {
                                 result = filterFunction(data);
@@ -525,7 +526,7 @@ function IndexSQL(dbName, userOptions) {
                         }
                         if (columns.keys.primary.length !== 0) {
                             let error = false;
-                            columns.keys.primary.forEach((key) => { if (!columns.cols[key]) { error = key } })
+                            columns.keys.primary.forEach((key) => { if (!columns.columns[key]) { error = key } })
                             if (error) {
                                 endedOnError();
                                 return { error: "The table does not contain the primary key: " + error }
@@ -534,14 +535,14 @@ function IndexSQL(dbName, userOptions) {
                         }
                         if (columns.keys.foreign.length !== 0) {
                             let error = false;
-                            columns.keys.foreign.forEach((key) => { if (!columns.cols[key.col]) { error = key.col } })
+                            columns.keys.foreign.forEach((key) => { if (!columns.columns[key.col]) { error = key.col } })
                             if (error) {
                                 endedOnError();
                                 return { error: "The table does not contain the foreign key: " + error }
                             }
                             table.key = columns.keys.primary;
                         }
-                        table.c = columns.col;
+                        table.c = columns.columns;
                         db.t[name] = table;
                         commit();
                         return { message: "Table " + name + " created" };
@@ -706,7 +707,8 @@ function IndexSQL(dbName, userOptions) {
                     },
                     sendError: function(){
                         endedOnError();
-                    }
+                    },
+                    checkTransaction
                 }
             }
             return returnDb;
