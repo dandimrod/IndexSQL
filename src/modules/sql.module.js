@@ -42,7 +42,7 @@
             //In database join processing
             "select": function (query) {
                 //debugger;
-                let parsedQuery= /^select\s+(distint\s+)?(.*)\s+?from\s+(.*)$/gmi.exec(query)
+                let parsedQuery= /^select\s+(distint\s+)?(.*)\s+?from\s+(.*)$/i.exec(query)
                 if (parsedQuery === null) {
                     return { "error": "Query malformed" };
                 }
@@ -67,26 +67,7 @@
                     });
                 }
                 if(params["join"]){
-                    let stringSearcher='([a-zA-Z0-9_]+|"[^"]+"|\'[^\']+\'|`[^`]+`)';
-                    let formatedJoin=new RegExp(`^${stringSearcher}\\s+on\\s+${stringSearcher}.${stringSearcher}\\s*=\\s*${stringSearcher}.${stringSearcher}$`,"i").exec(params["join"].trim());
-                    if(formatedJoin===null){
-                        return {error: "Malformed join"}
-                    }
-                    let foreingTable=this.utils.trimString(formatedJoin[1]);
-                    let foreingColumn;
-                    let column;
-                    if(foreingTable===this.utils.trimString(formatedJoin[2])){
-                        foreingColumn=this.utils.trimString(formatedJoin[3]);
-                        column=this.utils.trimString(formatedJoin[5]);
-                    }else{
-                        if(foreingTable===this.utils.trimString(formatedJoin[4])){
-                            foreingColumn=this.utils.trimString(formatedJoin[5]);
-                            column=this.utils.trimString(formatedJoin[3]);
-                        }else{
-                            return {error: "Malformed join"}
-                        }
-                    }
-                    params["join"]=[{foreingTable,foreingColumn,column}];
+                    params["join"]=this.utils.join(params["join"])
                 }
                 if(params["where"]){
                     params["where"]=this.utils.where(params["where"].trim(),params["from"],params["join"]);
@@ -97,14 +78,67 @@
                 if(params["offset"]){
                     params["offset"]=new Number(params["offset"].trim());
                 }
-                let result=db.data.getData(params["from"],params["where"],params["join"]);
-                if(result.error){
-                    return result;
+                let queryResult=db.data.getData(params["from"],params["where"],params["join"]);
+                if(queryResult.error){
+                    return queryResult;
                 }
-                return result;
+                queryResult.result=Object.values(queryResult.result);
+                queryResult.result=queryResult.result.map((values)=>{
+                    let result={}
+                    columnList.forEach((column)=>{
+                        switch (column.type) {
+                            case "column":
+                                result[column.column]=values[column.column]
+                                break;
+                            case "compound":
+                                if(column.table===params["from"]){
+                                    result[column.column]=values[column.column]
+                                }else{
+                                    let myJoin=params["join"].find((join)=>join.foreingTable===column.table);
+                                    result[myJoin.column+"."+column.column]=values[myJoin.column][myJoin.foreingColumn];
+                                }
+                                break;
+                            case "function":
+                                switch (column.exec.toLowerCase()) {
+                                    case "count":
+                                       result[column.exec+"("+column.column+")"] = queryResult.result.length;
+                                    break;
+                                    case "avg":
+                                		result[column.exec+"("+column.column+")"] = queryResult.result.reduce((ac,col)=>ac+col[column.column])/queryResult.result.length;
+                                    break;
+                                    case "sum":
+										result[column.exec+"("+column.column+")"] = queryResult.result.reduce((ac,col)=>ac+col[column.column]);
+                                    break;
+                                    case "min":
+                                        result[column.exec+"("+column.column+")"] = Math.min.apply(Math, queryResult.result.map(col=>col[column.column]));
+                                    break;
+                                    case "max":
+                                        result[column.exec+"("+column.column+")"] = Math.max.apply(Math, queryResult.result.map(col=>col[column.column]));
+                                    break;
+                                }
+                                break;
+                        }
+                    })
+                    return result;
+                })
+				if(distint){
+					queryResult.result=queryResult.result.filter((v,i,a)=>a.findIndex(t=>(JSON.stringify(t) === JSON.stringify(v)))===i)
+				}
+                if(params["order by"]){
+					
+                }
+                if(!isNaN(params["limit"])){
+                    if(!isNaN(params["offset"])){
+                        queryResult.result=queryResult.result.slice(params["offset"],params["limit"]+params["offset"]);
+                    }else{
+                        queryResult.result=queryResult.result.slice(0,params["limit"]);
+                    }
+                }
+                
+                return queryResult;
             },
             "insert": function (query){
-                debugger;
+                //debugger;
                 let parsedQuery = /^insert\s+into\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`|)\s+(?:\((.*?)\)\s+)?values\s+\((.*)\)\s*$/i.exec(query);
                 if(parsedQuery === null){
                     return { "error": "Query malformed" };
@@ -122,22 +156,7 @@
                     }
                     columns=Object.keys(tableData.columns);
                 }
-                values=parsedQuery[3].trim().split(",").map(value=>{
-                    value=value.trim();
-                    if(value.toLowerCase()==="true"){
-                        return true;
-                    }
-                    if(value.toLowerCase()==="false"){
-                        return false;
-                    }
-                    if(value.toLowerCase()==="null"){
-                        return null;
-                    }
-                    if(!isNaN(value)){
-                        return new Number(value);
-                    }
-                    return this.utils.trimString(value);
-                })
+                values=parsedQuery[3].trim().split(",").map(this.utils.extractValues())
                 try{
                     columns.forEach((column,index)=>result[column]=values[index]);
                 }catch(error){
@@ -147,14 +166,54 @@
             },
             //TODO
             "update":function(query){
-                return { "message": "Query malformed" };
+                let parsedQuery= /^update\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`|)\s+set\s+(.*)$/i.exec(query)
+                if (parsedQuery === null) {
+                    return { "error": "Query malformed" };
+                }
+                let table=this.utils.trimString(parsedQuery[1]);
+                let params=this.utils.splitter(parsedQuery[2], ["join", "where"], "set");
+                if(params["set"]){
+                    let result={};
+                    params["set"].split(",").forEach((set)=>{
+                        let parsedSet=/^([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`|)\s*=\s*(.*)$/.exec(set);
+                        let key=this.utils.trimString(parsedSet[1]);
+                        let value=this.utils.extractValues(parsedSet[2]);
+                        result[key]=value;
+                    })
+                    params["set"]=result;
+                }else{
+                    return { "error": "Query malformed" };
+                }
+                if(params["join"]){
+                    params["join"]=this.utils.join(params["join"])
+                }
+                if(params["where"]){
+                    params["where"]=this.utils.where(params["where"].trim(),params["from"],params["join"]);
+                }
+                return db.data.updateData(table,params["set"],params["where"],params["join"]);
             },
-            //TODO
             "delete":function(query){
-                return { "message": "Query malformed" };
+                let parsedQuery= /^delete\s+from\s+(.*)$/gmi.exec(query);
+                if (parsedQuery === null) {
+                    return { "error": "Query malformed" };
+                }
+                let params=this.utils.splitter(parsedQuery[1], ["join", "where"], "from");
+                if(params["from"]){
+                    params["from"]=this.utils.trimString(params["from"]);
+                }else{
+                    return {error:"No table detected"}
+                }
+                if(params["join"]){
+                    params["join"]=this.utils.join(params["join"])
+                }
+                if(params["where"]){
+                    params["where"]=this.utils.where(params["where"].trim(),params["from"],params["join"]);
+                }
+                return db.data.deleteData(params["from"],params["where"],params["join"]);
             },
             //NEEDS REVIEW
             "create": function (query) {
+                debugger;
                 let parsedQuery = /^create\s+table\s+([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`)\s+\(\s*(.*?)\s*\)$/i.exec(query);
                 if (parsedQuery === null) {
                     return { "error": "Query malformed" };
@@ -333,6 +392,44 @@
                         return "BOOLEAN";
                     }
                     return datatype;
+                },
+                "extractValues":(value)=>{
+                    value=value.trim();
+                    if(value.toLowerCase()==="true"){
+                        return true;
+                    }
+                    if(value.toLowerCase()==="false"){
+                        return false;
+                    }
+                    if(value.toLowerCase()==="null"){
+                        return null;
+                    }
+                    if(!isNaN(value)){
+                        return new Number(value);
+                    }
+                    return this.utils.trimString(value);
+                },
+                "join":function(joinString){
+                    let stringSearcher='([a-zA-Z0-9_]+|"[^"]+"|\'[^\']+\'|`[^`]+`)';
+                    let formatedJoin=new RegExp(`^${stringSearcher}\\s+on\\s+${stringSearcher}.${stringSearcher}\\s*=\\s*${stringSearcher}.${stringSearcher}$`,"i").exec(joinString.trim());
+                    if(formatedJoin===null){
+                        return {error: "Malformed join"}
+                    }
+                    let foreingTable=this.utils.trimString(formatedJoin[1]);
+                    let foreingColumn;
+                    let column;
+                    if(foreingTable===this.utils.trimString(formatedJoin[2])){
+                        foreingColumn=this.utils.trimString(formatedJoin[3]);
+                        column=this.utils.trimString(formatedJoin[5]);
+                    }else{
+                        if(foreingTable===this.utils.trimString(formatedJoin[4])){
+                            foreingColumn=this.utils.trimString(formatedJoin[5]);
+                            column=this.utils.trimString(formatedJoin[3]);
+                        }else{
+                            return {error: "Malformed join"}
+                        }
+                    }
+                    return [{foreingTable,foreingColumn,column}];
                 },
                 "where":function(where,tableName,joins){
                     debugger;

@@ -434,7 +434,7 @@ function IndexSQL(dbName, userOptions) {
                             }
                         }
                     }
-                    return { data: passed }
+                    return passed;
                 } catch (e) {
                     return { error: "Malformed filter" }
                 }
@@ -447,10 +447,10 @@ function IndexSQL(dbName, userOptions) {
             }
             function secureFunction(code, ...variables) {
                 //https://stackoverflow.com/questions/47444376/sanitizing-eval-to-prevent-it-from-changing-any-values
-                let globals = [...variables, "globalThis", ...Object.keys(globalThis), code];
+                let globals = [...variables, "globalThis", ...Object.keys(globalThis), `return ${code};`];
                 let securized = Function.apply(null, globals);
                 return function (...variables) {
-                    return securized.apply({}, ...variables);
+                    return securized.apply({}, variables);
                 }
             }
             let db;

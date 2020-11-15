@@ -130,7 +130,7 @@ END TRANSACTION;`);
                     continue;
                 }
                 if(result.result){
-                    resultString=resultString+"<p>Result from command "+(index+1)+": </p>"//+tableDrawer(result.result);
+                    resultString=resultString+"<p>Result from command "+(index+1)+": </p>"+tableDrawer(result.result);
                     continue;
                 }
             }
@@ -164,27 +164,33 @@ END TRANSACTION;`);
                     element.classList.remove("active");
                 }
             }
-            indexSQL.execute("sql",function(err,tableName){
-                return function(result){
-                    let table=result[0].result;
-                    let tablesString="<h2>Showing table "+tableName+"</h2>"+tableDrawer(table);
-                    document.getElementById("table-inspector").innerHTML=tablesString;
-                }
-            }(table),
+            indexSQL.execute("sql",function(error,result){
+                let tableData=result[0].result;
+                let tablesString="<h2>Showing table "+table+"</h2>"+tableDrawer(tableData);
+                document.getElementById("table-inspector").innerHTML=tablesString;
+            },
             "SELECT * FROM "+table+";");
         }
         function tableDrawer(table){
             let tableString="<table><tr>";
-            for (let index = 0; index < table.header.length; index++) {
-                const element = table.header[index];
-                tableString=tableString+"<th title='"+element.constraints+"'>"+element.name+"</th>";
+            let headers=[];
+            table.forEach((entry)=>{
+                Object.keys(entry).forEach(header=>{
+                    if(!headers.includes(header)){
+                        headers.push(header)
+                    }
+                })
+            })
+            for (let index = 0; index < headers.length; index++) {
+                const element = headers[index];
+                tableString=tableString+"<th>"+element+"</th>";
             }
             tableString=tableString+"</tr>";
-            for (let index = 0; index < table.values.length; index++) {
-                const values = table.values[index];
+            for (let index = 0; index < table.length; index++) {
+                const values = table[index];
                 tableString=tableString+"<tr>";
-                for (let index2 = 0; index2 < values.length; index2++) {
-                    const value = values[index2];
+                for (let index2 = 0; index2 < headers.length; index2++) {
+                    const value = values[headers[index2]];
                     tableString=tableString+"<td>"+value+"</td>";
                 }
                 tableString=tableString+"</tr>";
