@@ -125,7 +125,30 @@
 					queryResult.result=queryResult.result.filter((v,i,a)=>a.findIndex(t=>(JSON.stringify(t) === JSON.stringify(v)))===i)
 				}
                 if(params["order by"]){
-					
+					queryResult.result=queryResult.result.sort((a,b)=>{
+                        let result=0;
+                        for (let index = 0; index < params["order by"].length; index++) {
+                            const order = params["order by"][index];
+                            switch(typeof a[order.column]){
+                                case "string":
+                                    result=a[order.column].localeCompare(b[order.column]);
+                                    break;
+                                case "number":
+                                    result=a[order.column]-b[order.column];
+                                    break;
+                                case "boolean":
+                                    result=(a[order.column] === b[order.column])? 0 : a[order.column]? -1 : 1;
+                                    break;
+                            }
+                            if(order.desc){
+                                result=-result;
+                            }
+                            if(result!==0){
+                                break;
+                            }
+                        }
+                        return result;
+                    })
                 }
                 if(!isNaN(params["limit"])){
                     if(!isNaN(params["offset"])){
