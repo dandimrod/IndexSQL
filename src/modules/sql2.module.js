@@ -37,6 +37,15 @@
             }
             return result;
         },
+        "lexer":{
+            keywords:[],
+            tokenizer:function(phrase){
+
+            }
+        },
+        "parser":{
+
+        },
         "commands": {
             //Post query processing
             //In database join processing
@@ -355,10 +364,16 @@
                                 }
                             }
                         } else {
-                            let parametersBreak = /^(.*?)\s+(.*?\(.*?\)|.*?)(?:\s+(.+?))?$/i.exec(parameterString);
+                            let parametersBreak = /^([a-zA-Z0-9_]+|"[^"]+"|'[^']+'|`[^`]+`|)\s+(.*?\(.*?\)|.*?)(?:\s+(.+?))?$/i.exec(parameterString);
                             if (parametersBreak !== null) {
+                                let columnName=this.trimString(parametersBreak[1]);
                                 let column = {
-                                    constraints: []
+                                    constraints: [],
+                                    unique:undefined,
+                                    default:undefined,
+                                    meta:{
+
+                                    }
                                 }
                                 let datatype = this.extractDatatype(parametersBreak[2]);
                                 if (datatype.error) {
@@ -367,7 +382,7 @@
                                 }
                                 column.type = datatype;
                                 //TODO:CONSTRAINTS
-                                result.columns[parametersBreak[1]] = column;
+                                result.columns[columnName] = column;
                             } else {
                                 error = "Malformed query"
                                 return true;
@@ -382,10 +397,24 @@
                 },
                 "extractDatatype": function (datatype) {
                     datatype = datatype.toUpperCase();
+                    let result={
+                        datatype:undefined,
+                        metadata:undefined,
+                        checks:undefined,
+                    }
                     if (datatype.includes("CHAR")) {
+                        result.datatype="STRING";
+                        if(datatype.includes("VAR")){
+                            
+                        }else{
+                            
+                        }
                         return "STRING";
                     }
                     if (datatype.includes("BINARY")) {
+                        if(datatype.includes("VAR")){
+                            
+                        }
                         return "STRING";
                     }
                     if (datatype.includes("TEXT")) {
