@@ -33,7 +33,7 @@ function IndexSQL(dbName, userOptions) {
         db: "indexdb", // localstorage none
         fallback: true,
         backup: undefined,
-        cache: undefined,
+        restore: undefined,
         modules: [],
     }
     let options = { ...defaultOptions, ...userOptions };

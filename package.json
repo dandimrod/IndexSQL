@@ -1,0 +1,21 @@
+{
+  "name": "indexsql",
+  "version": "0.3.0",
+  "description": "IndexSQL is a tool that helps with the use of IndexedDB by making it SQL like.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dandimrod/IndexSQL.git"
+  },
+  "author": "dandimrod",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dandimrod/IndexSQL/issues"
+  },
+  "homepage": "https://dandimrod.dev/IndexSQL"
+}
